@@ -36,12 +36,12 @@ export function AuthButton() {
             setBusy(false);
           }
         }}
-        className="group inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/40 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100 disabled:opacity-60"
+        className="group inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white/60 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
         title="Sign out"
       >
         <span className="hidden sm:inline">{display}</span>
         <span className="sm:hidden">●</span>
-        <span className="text-slate-500 group-hover:text-slate-300">
+        <span className="text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300">
           {busy ? "…" : "Sign out"}
         </span>
       </button>
@@ -59,7 +59,7 @@ export function AuthButton() {
           setBusy(false);
         }
       }}
-      className="inline-flex items-center gap-2 rounded-md border border-slate-700 bg-slate-900/40 px-3 py-1.5 text-xs font-medium text-slate-300 transition-colors hover:border-slate-500 hover:text-slate-100 disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white/60 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
     >
       <GoogleIcon />
       <span>{busy ? "Opening…" : "Sign in with Google"}</span>

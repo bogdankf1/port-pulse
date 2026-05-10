@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
-import { AuthButton } from "@/components/AuthButton";
+import Script from "next/script";
+import { Navbar } from "@/components/Navbar";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,6 +20,8 @@ export const metadata: Metadata = {
     "Live tracker for your investment portfolio — upload a screenshot, watch the prices.",
 };
 
+const themeInitScript = `(function(){try{var k='port-pulse:theme';var s=localStorage.getItem(k);var t=(s==='light'||s==='dark')?s:(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark');if(t==='dark')document.documentElement.classList.add('dark');document.documentElement.style.colorScheme=t;}catch(e){document.documentElement.classList.add('dark');document.documentElement.style.colorScheme='dark';}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,12 +30,14 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-[#0a0e1a] text-slate-100">
-        <div className="absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
-          <AuthButton />
-        </div>
+      <body className="flex min-h-full flex-col text-slate-900 dark:text-slate-100">
+        <Script id="theme-init" strategy="beforeInteractive">
+          {themeInitScript}
+        </Script>
+        <Navbar />
         {children}
       </body>
     </html>

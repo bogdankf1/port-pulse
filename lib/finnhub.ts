@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ConnectionState, PriceState } from "@/types";
 
 type Listener = () => void;
@@ -8,6 +8,7 @@ type Listener = () => void;
 const prices = new Map<string, PriceState>();
 const priceListeners = new Map<string, Set<Listener>>();
 const connListeners = new Set<Listener>();
+const quoteInFlight = new Set<string>();
 
 let ws: WebSocket | null = null;
 let subs = new Set<string>();
@@ -92,8 +93,11 @@ function connect() {
   socket.addEventListener("close", () => {
     ws = null;
     subs = new Set();
+    // If nobody's listening anymore, this close came from teardown — leave the
+    // state as "idle" so the navbar doesn't show a stuck "Reconnecting…" pill.
+    if (activeUsers <= 0) return;
     setConnState("closed");
-    if (activeUsers > 0 && wanted.size > 0) scheduleReconnect();
+    if (wanted.size > 0) scheduleReconnect();
   });
 
   socket.addEventListener("error", () => {
@@ -145,6 +149,33 @@ function cancelTeardown() {
   }
 }
 
+async function fetchQuoteSnapshot(symbol: string): Promise<void> {
+  if (quoteInFlight.has(symbol) || prices.has(symbol)) return;
+  const token = process.env.NEXT_PUBLIC_FINNHUB_TOKEN;
+  if (!token) return;
+  quoteInFlight.add(symbol);
+  try {
+    const res = await fetch(
+      `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${token}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return;
+    const data = await res.json();
+    if (typeof data?.c !== "number" || data.c === 0) return;
+    if (prices.has(symbol)) return;
+    prices.set(symbol, {
+      price: data.c,
+      prevPrice: typeof data?.pc === "number" ? data.pc : null,
+      timestamp: Date.now(),
+    });
+    notifyPrice(symbol);
+  } catch {
+    // ignore
+  } finally {
+    quoteInFlight.delete(symbol);
+  }
+}
+
 function subscribePrice(symbol: string, listener: Listener): () => void {
   let set = priceListeners.get(symbol);
   if (!set) {
@@ -177,6 +208,7 @@ export function useFinnhubPrices(symbols: string[]): ConnectionState {
     wanted = new Set(symbols);
     if (!ws) connect();
     else reconcile();
+    for (const s of symbols) void fetchQuoteSnapshot(s);
     return () => {
       activeUsers -= 1;
       if (activeUsers <= 0) scheduleTeardown();
@@ -191,10 +223,39 @@ export function useFinnhubPrices(symbols: string[]): ConnectionState {
   );
 }
 
+export function useConnectionState(): ConnectionState {
+  return useSyncExternalStore(
+    subscribeConn,
+    () => connState,
+    () => "idle" as ConnectionState,
+  );
+}
+
 export function usePrice(symbol: string): PriceState | undefined {
   return useSyncExternalStore(
     (listener) => subscribePrice(symbol, listener),
     () => prices.get(symbol),
     () => undefined,
   );
+}
+
+export function getPriceSync(symbol: string): number | undefined {
+  return prices.get(symbol)?.price;
+}
+
+export function usePortfolioVersion(symbols: string[]): number {
+  const [version, setVersion] = useState(0);
+  const key = symbols.slice().sort().join("|");
+
+  useEffect(() => {
+    const subs = symbols.map((s) =>
+      subscribePrice(s, () => setVersion((v) => v + 1)),
+    );
+    return () => {
+      for (const u of subs) u();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  return version;
 }

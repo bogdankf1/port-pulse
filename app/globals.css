@@ -1,10 +1,24 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
-  --color-background: #0a0e1a;
-  --color-foreground: #e2e8f0;
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
+}
+
+:root {
+  --bg-base: #f5f7fa;
+  --bg-grad-1: rgba(16, 185, 129, 0.06);
+  --bg-grad-2: rgba(56, 189, 248, 0.05);
+  --flash-end-bg: rgba(255, 255, 255, 0.85);
+}
+
+.dark {
+  --bg-base: #0a0e1a;
+  --bg-grad-1: rgba(16, 185, 129, 0.07);
+  --bg-grad-2: rgba(56, 189, 248, 0.04);
+  --flash-end-bg: rgba(15, 23, 42, 0.4);
 }
 
 html,
@@ -16,15 +30,15 @@ body {
   background:
     radial-gradient(
       900px 500px at 50% -200px,
-      rgba(16, 185, 129, 0.07),
+      var(--bg-grad-1),
       transparent 60%
     ),
     radial-gradient(
       700px 400px at 80% 110%,
-      rgba(56, 189, 248, 0.04),
+      var(--bg-grad-2),
       transparent 60%
     ),
-    #0a0e1a;
+    var(--bg-base);
   background-attachment: fixed;
 }
 
@@ -36,7 +50,7 @@ body {
       0 0 24px -4px rgba(16, 185, 129, 0.35);
   }
   100% {
-    background-color: rgba(15, 23, 42, 0.4);
+    background-color: var(--flash-end-bg);
     box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
   }
 }
@@ -49,7 +63,7 @@ body {
       0 0 24px -4px rgba(239, 68, 68, 0.35);
   }
   100% {
-    background-color: rgba(15, 23, 42, 0.4);
+    background-color: var(--flash-end-bg);
     box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
   }
 }
@@ -60,4 +74,30 @@ body {
 
 .flash-down {
   animation: flashDown 600ms ease-out;
+}
+
+@keyframes flashUpRow {
+  0% {
+    background-color: rgba(16, 185, 129, 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes flashDownRow {
+  0% {
+    background-color: rgba(239, 68, 68, 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.flash-up-row {
+  animation: flashUpRow 600ms ease-out;
+}
+
+.flash-down-row {
+  animation: flashDownRow 600ms ease-out;
 }

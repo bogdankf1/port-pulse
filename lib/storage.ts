@@ -1,58 +1,31 @@
 import type { Ticker } from "@/types";
 import { getUser, isAuthReady, subscribeUser } from "./auth";
 import { isSupabaseConfigured } from "./supabase";
+import {
+  getActivePortfolioId,
+  subscribeActivePortfolio,
+} from "./portfolios";
 
-const KEY = "port-pulse:watchlist";
 const EMPTY: Ticker[] = [];
 
 const subscribers = new Set<() => void>();
 let cached: Ticker[] = EMPTY;
 let initialized = false;
 let lastUserId: string | null = null;
+let lastPortfolioId: string | null = null;
 let migrating = false;
-
-function readFromSession(): Ticker[] {
-  if (typeof window === "undefined") return EMPTY;
-  try {
-    const raw = sessionStorage.getItem(KEY);
-    if (!raw) return EMPTY;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return EMPTY;
-    const valid: Ticker[] = [];
-    for (const item of parsed) {
-      if (
-        item &&
-        typeof item === "object" &&
-        typeof (item as { symbol?: unknown }).symbol === "string" &&
-        (item as { symbol: string }).symbol.length > 0
-      ) {
-        const sym = (item as { symbol: string }).symbol;
-        const rawName = (item as { name?: unknown }).name;
-        valid.push({
-          symbol: sym,
-          name: typeof rawName === "string" ? rawName : "",
-        });
-      }
-    }
-    return valid.length > 0 ? valid : EMPTY;
-  } catch {
-    return EMPTY;
-  }
-}
+let fetchSeq = 0;
 
 function emit(): void {
   for (const sub of subscribers) sub();
 }
 
-function persistSession(tickers: Ticker[]): void {
-  if (typeof window === "undefined") return;
-  if (tickers.length === 0) sessionStorage.removeItem(KEY);
-  else sessionStorage.setItem(KEY, JSON.stringify(tickers));
-}
-
-async function fetchRemote(): Promise<Ticker[] | null> {
+async function fetchRemote(portfolioId: string): Promise<Ticker[] | null> {
   try {
-    const res = await fetch("/api/watchlist", { cache: "no-store" });
+    const res = await fetch(
+      `/api/watchlist?portfolio_id=${encodeURIComponent(portfolioId)}`,
+      { cache: "no-store" },
+    );
     if (!res.ok) return null;
     const json = await res.json();
     if (!Array.isArray(json.tickers)) return null;
@@ -62,76 +35,124 @@ async function fetchRemote(): Promise<Ticker[] | null> {
   }
 }
 
-async function postRemote(tickers: Ticker[]): Promise<void> {
+async function postRemote(
+  portfolioId: string,
+  tickers: Ticker[],
+): Promise<void> {
   if (tickers.length === 0) return;
   try {
     await fetch("/api/watchlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tickers }),
+      body: JSON.stringify({ portfolio_id: portfolioId, tickers }),
     });
   } catch {
     // ignore — UI shows the optimistic update; reload will resync
   }
 }
 
-async function deleteRemote(symbols?: string[]): Promise<void> {
+async function deleteRemote(
+  portfolioId: string,
+  symbols?: string[],
+): Promise<void> {
   try {
+    const base = `/api/watchlist?portfolio_id=${encodeURIComponent(portfolioId)}`;
     const url =
       symbols && symbols.length > 0
-        ? `/api/watchlist?symbols=${symbols.map(encodeURIComponent).join(",")}`
-        : "/api/watchlist";
+        ? `${base}&symbols=${symbols.map(encodeURIComponent).join(",")}`
+        : base;
     await fetch(url, { method: "DELETE" });
   } catch {
     // ignore
   }
 }
 
+function mergePair(a: Ticker, b: Ticker): Ticker {
+  const aQty = a.quantity ?? 0;
+  const bQty = b.quantity ?? 0;
+  const totalQty = aQty + bQty;
+
+  let entryPrice: number | undefined;
+  if (a.entryPrice != null && b.entryPrice != null && totalQty > 0) {
+    entryPrice = (aQty * a.entryPrice + bQty * b.entryPrice) / totalQty;
+  } else if (a.entryPrice != null) {
+    entryPrice = a.entryPrice;
+  } else if (b.entryPrice != null) {
+    entryPrice = b.entryPrice;
+  }
+
+  return {
+    symbol: a.symbol,
+    name: a.name || b.name,
+    quantity: totalQty > 0 ? totalQty : a.quantity ?? b.quantity,
+    entryPrice,
+  };
+}
+
 function mergeArrays(existing: Ticker[], incoming: Ticker[]): Ticker[] {
-  const seen = new Set(existing.map((t) => t.symbol));
-  const out = existing.slice();
+  const indexBySymbol = new Map<string, number>();
+  const out = existing.map((t, i) => {
+    indexBySymbol.set(t.symbol, i);
+    return t;
+  });
   for (const t of incoming) {
-    if (!seen.has(t.symbol)) {
+    const idx = indexBySymbol.get(t.symbol);
+    if (idx == null) {
+      indexBySymbol.set(t.symbol, out.length);
       out.push(t);
-      seen.add(t.symbol);
+    } else {
+      out[idx] = mergePair(out[idx], t);
     }
   }
   return out;
 }
 
-async function onAuthChange(): Promise<void> {
+async function reload(): Promise<void> {
   if (typeof window === "undefined") return;
   const u = getUser();
-  const newId = u?.id ?? null;
-  if (newId === lastUserId) return;
+  const userId = u?.id ?? null;
+  const portfolioId = getActivePortfolioId();
 
-  if (newId === null) {
-    lastUserId = null;
-    persistSession(cached);
+  // Logged out: drop everything (in-memory only, no persistence).
+  if (!userId) {
+    if (lastUserId !== null) {
+      // Just signed out — clear cached state.
+      lastUserId = null;
+      lastPortfolioId = null;
+      cached = EMPTY;
+      emit();
+    }
     return;
   }
 
+  // Logged in but portfolio hasn't loaded yet — wait.
+  if (!portfolioId) return;
+
+  // Same user + same portfolio → nothing to do.
+  if (userId === lastUserId && portfolioId === lastPortfolioId) return;
+
+  // Just signed in (carrying in-memory tickers from a guest session)?
+  const justSignedIn = lastUserId === null;
+  const carry = justSignedIn ? cached : EMPTY;
+
   if (migrating) return;
   migrating = true;
+  const seq = ++fetchSeq;
   try {
-    lastUserId = newId;
-    const sessionTickers = readFromSession();
-    const remoteTickers = await fetchRemote();
-    if (remoteTickers === null) {
-      // Remote unavailable; treat as empty for now
-      cached = sessionTickers;
-      emit();
-      return;
+    lastUserId = userId;
+    lastPortfolioId = portfolioId;
+
+    const remote = await fetchRemote(portfolioId);
+    if (seq !== fetchSeq) return; // newer reload superseded us
+    const base = remote ?? EMPTY;
+    const merged = carry.length > 0 ? mergeArrays(base, carry) : base;
+
+    if (carry.length > 0) {
+      const carrySyms = new Set(carry.map((t) => t.symbol));
+      const toUpsert = merged.filter((t) => carrySyms.has(t.symbol));
+      if (toUpsert.length > 0) await postRemote(portfolioId, toUpsert);
     }
-    const merged = mergeArrays(remoteTickers, sessionTickers);
-    if (sessionTickers.length > 0) {
-      const remoteSyms = new Set(remoteTickers.map((t) => t.symbol));
-      const newOnes = sessionTickers.filter((t) => !remoteSyms.has(t.symbol));
-      if (newOnes.length > 0) {
-        await postRemote(newOnes);
-      }
-      sessionStorage.removeItem(KEY);
-    }
+
     cached = merged;
     emit();
   } finally {
@@ -143,23 +164,19 @@ function ensureInit(): void {
   if (initialized) return;
   initialized = true;
   if (typeof window === "undefined") return;
-  cached = readFromSession();
-
-  window.addEventListener("storage", (e) => {
-    if (e.key === KEY && !lastUserId) {
-      cached = readFromSession();
-      emit();
-    }
-  });
 
   if (isSupabaseConfigured()) {
     subscribeUser(() => {
-      onAuthChange().catch(() => {});
+      reload().catch(() => {});
     });
     if (isAuthReady()) {
-      onAuthChange().catch(() => {});
+      reload().catch(() => {});
     }
   }
+
+  subscribeActivePortfolio(() => {
+    reload().catch(() => {});
+  });
 }
 
 export function getWatchlist(): Ticker[] {
@@ -181,15 +198,16 @@ export function subscribeWatchlist(cb: () => void): () => void {
 
 export function mergeIntoWatchlist(incoming: Ticker[]): void {
   ensureInit();
-  const seen = new Set(cached.map((t) => t.symbol));
-  const newOnes = incoming.filter((t) => !seen.has(t.symbol));
-  if (newOnes.length === 0) return;
-  cached = [...cached, ...newOnes];
+  if (incoming.length === 0) return;
+  const before = cached;
+  const merged = mergeArrays(before, incoming);
+  if (merged === before) return;
+  cached = merged;
   emit();
-  if (lastUserId) {
-    void postRemote(newOnes);
-  } else {
-    persistSession(cached);
+  if (lastUserId && lastPortfolioId) {
+    const touched = new Set(incoming.map((t) => t.symbol));
+    const toPost = merged.filter((t) => touched.has(t.symbol));
+    if (toPost.length > 0) void postRemote(lastPortfolioId, toPost);
   }
 }
 
@@ -198,10 +216,8 @@ export function removeFromWatchlist(symbol: string): void {
   if (!cached.some((t) => t.symbol === symbol)) return;
   cached = cached.filter((t) => t.symbol !== symbol);
   emit();
-  if (lastUserId) {
-    void deleteRemote([symbol]);
-  } else {
-    persistSession(cached);
+  if (lastUserId && lastPortfolioId) {
+    void deleteRemote(lastPortfolioId, [symbol]);
   }
 }
 
@@ -210,9 +226,7 @@ export function clearWatchlist(): void {
   if (cached.length === 0) return;
   cached = EMPTY;
   emit();
-  if (lastUserId) {
-    void deleteRemote();
-  } else {
-    persistSession(EMPTY);
+  if (lastUserId && lastPortfolioId) {
+    void deleteRemote(lastPortfolioId);
   }
 }
