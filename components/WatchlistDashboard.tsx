@@ -22,6 +22,7 @@ import {
   subscribeActivePortfolio,
   subscribePortfolios,
 } from "@/lib/portfolios";
+import Link from "next/link";
 import { PortfolioTable } from "./PortfolioTable";
 import { PortfolioSelector } from "./PortfolioSelector";
 import { Uploader } from "./Uploader";
@@ -91,6 +92,16 @@ export function WatchlistDashboard() {
               >
                 + Add screenshot
               </button>
+              {isLoggedIn && (
+                <Link
+                  href="/compare"
+                  aria-label="Compare portfolios"
+                  title="Compare portfolios"
+                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
+                >
+                  <ScaleIcon />
+                </Link>
+              )}
               <button
                 onClick={() => clearWatchlist()}
                 className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:text-red-500 dark:hover:text-red-400"
@@ -169,5 +180,27 @@ function EmptyPortfolio({
         Or add a ticker manually
       </button>
     </div>
+  );
+}
+
+function ScaleIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 3v18" />
+      <path d="M5 21h14" />
+      <path d="M6 8h12" />
+      <path d="M6 8l-3 7a4 4 0 0 0 6 0z" />
+      <path d="M18 8l-3 7a4 4 0 0 0 6 0z" />
+    </svg>
   );
 }

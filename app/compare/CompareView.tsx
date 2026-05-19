@@ -134,7 +134,6 @@ export function CompareView() {
   const error = showLoaded ? slot?.error : undefined;
   const loading = isLoggedIn && hasSelection && !matches;
   const series = data?.series ?? [];
-  const caveat = data?.caveat;
 
   function togglePortfolio(id: string) {
     setExplicitPortfolios((prev) => {
@@ -161,22 +160,12 @@ export function CompareView() {
         <h1 className="font-mono text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
           Compare
         </h1>
-        <p className="mt-1 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-          Overlay your portfolios against major benchmarks, normalized to %
-          change from the start of the selected timeframe.
-        </p>
       </header>
 
       {!isLoggedIn && authReady ? (
         <SignInPrompt />
       ) : (
         <>
-          {caveat && (
-            <div className="mb-4 rounded-lg border border-slate-200 bg-slate-100/60 px-4 py-3 text-xs text-slate-600 dark:border-slate-800/70 dark:bg-slate-900/40 dark:text-slate-400">
-              {caveat}
-            </div>
-          )}
-
           <div className="mb-4">
             <CompareSelectors
               portfolios={portfolios}
