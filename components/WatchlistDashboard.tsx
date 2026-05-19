@@ -26,6 +26,7 @@ import { PortfolioTable } from "./PortfolioTable";
 import { PortfolioSelector } from "./PortfolioSelector";
 import { Uploader } from "./Uploader";
 import { UploaderModal } from "./UploaderModal";
+import { AddTickerModal } from "./AddTickerModal";
 
 const SOFT_CAP = 25;
 
@@ -52,6 +53,7 @@ export function WatchlistDashboard() {
   );
 
   const [uploaderOpen, setUploaderOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
 
   const isLoggedIn = Boolean(user);
   const symbols = useMemo(() => tickers.map((t) => t.symbol), [tickers]);
@@ -60,6 +62,10 @@ export function WatchlistDashboard() {
   const overCap = tickers.length > SOFT_CAP;
   const showSelector = isLoggedIn && portfolios.length > 0;
   const portfolioReady = !isLoggedIn || activeId != null;
+  const activePortfolioName = useMemo(() => {
+    if (!isLoggedIn) return undefined;
+    return portfolios.find((p) => p.id === activeId)?.name;
+  }, [isLoggedIn, portfolios, activeId]);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
@@ -73,6 +79,12 @@ export function WatchlistDashboard() {
         <div className="flex items-center gap-2">
           {tickers.length > 0 && (
             <>
+              <button
+                onClick={() => setAddOpen(true)}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
+              >
+                + Add ticker
+              </button>
               <button
                 onClick={() => setUploaderOpen(true)}
                 className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
@@ -103,18 +115,32 @@ export function WatchlistDashboard() {
           onRemove={(symbol) => removeFromWatchlist(symbol)}
         />
       ) : (
-        <EmptyPortfolio ready={portfolioReady} />
+        <EmptyPortfolio
+          ready={portfolioReady}
+          onAddTicker={() => setAddOpen(true)}
+        />
       )}
 
       <UploaderModal
         open={uploaderOpen}
         onClose={() => setUploaderOpen(false)}
       />
+      <AddTickerModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        activePortfolioName={activePortfolioName}
+      />
     </main>
   );
 }
 
-function EmptyPortfolio({ ready }: { ready: boolean }) {
+function EmptyPortfolio({
+  ready,
+  onAddTicker,
+}: {
+  ready: boolean;
+  onAddTicker: () => void;
+}) {
   if (!ready) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white/40 px-6 py-16 text-center dark:border-slate-800/70 dark:bg-slate-900/40">
@@ -135,6 +161,13 @@ function EmptyPortfolio({ ready }: { ready: boolean }) {
         </p>
       </div>
       <Uploader mode="first" onComplete={() => {}} />
+      <button
+        type="button"
+        onClick={onAddTicker}
+        className="font-mono text-[11px] text-slate-500 underline-offset-4 transition-colors hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
+      >
+        Or add a ticker manually
+      </button>
     </div>
   );
 }

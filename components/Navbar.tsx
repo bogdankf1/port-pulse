@@ -1,13 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useSyncExternalStore } from "react";
 import { AuthButton } from "./AuthButton";
 import { ThemeToggle } from "./ThemeToggle";
 import { useConnectionState } from "@/lib/finnhub";
+import {
+  getUser,
+  getUserServerSnapshot,
+  subscribeUser,
+} from "@/lib/auth";
 import type { ConnectionState } from "@/types";
 
 export function Navbar() {
   const connState = useConnectionState();
+  const user = useSyncExternalStore(
+    subscribeUser,
+    getUser,
+    getUserServerSnapshot,
+  );
+  const pathname = usePathname();
+  const isSignedIn = Boolean(user);
 
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/80 backdrop-blur-md dark:border-slate-800/70 dark:bg-[#0a0e1a]/85">
@@ -19,6 +33,19 @@ export function Navbar() {
           >
             Port Pulse
           </Link>
+          {isSignedIn && (
+            <Link
+              href="/compare"
+              aria-current={pathname === "/compare" ? "page" : undefined}
+              className={`rounded-md px-2 py-1 font-mono text-[11px] font-medium tracking-wide transition-colors ${
+                pathname === "/compare"
+                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              }`}
+            >
+              Compare
+            </Link>
+          )}
           {connState !== "idle" && <ConnectionPill state={connState} />}
         </div>
         <div className="flex items-center gap-2">
