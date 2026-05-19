@@ -7,6 +7,8 @@ type Listener = () => void;
 const subscribers = new Set<Listener>();
 const activeSubscribers = new Set<Listener>();
 
+const EMPTY: Portfolio[] = [];
+
 let portfolios: Portfolio[] = [];
 let activeId: string | null = null;
 let loading = false;
@@ -122,7 +124,7 @@ export function subscribeActivePortfolio(cb: Listener): () => void {
 }
 
 export function getPortfoliosServerSnapshot(): Portfolio[] {
-  return [];
+  return EMPTY;
 }
 
 export function getActiveIdServerSnapshot(): string | null {

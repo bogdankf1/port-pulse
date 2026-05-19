@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { usePrice } from "@/lib/finnhub";
 import { useCompanyProfile } from "@/lib/profile";
 import type { Ticker } from "@/types";
@@ -12,9 +13,13 @@ type Props = {
 };
 
 export function TickerTableRow({ ticker, totalValue, onRemove }: Props) {
+  const router = useRouter();
   const price = usePrice(ticker.symbol);
   const profile = useCompanyProfile(ticker.symbol);
   const currentPrice = price?.price;
+
+  const href = `/position/${encodeURIComponent(ticker.symbol)}`;
+  const navigate = () => router.push(href);
   const [flash, setFlash] = useState<"up" | "down" | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSeen = useRef<number | null>(null);
@@ -65,7 +70,16 @@ export function TickerTableRow({ ticker, totalValue, onRemove }: Props) {
 
   return (
     <tr
-      className={`group border-b border-slate-200 transition-colors hover:bg-slate-50 dark:border-slate-800/70 dark:hover:bg-slate-900/40 ${flashClass}`}
+      role="link"
+      tabIndex={0}
+      onClick={navigate}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          navigate();
+        }
+      }}
+      className={`group cursor-pointer border-b border-slate-200 transition-colors hover:bg-slate-50 focus:outline-none focus:ring-1 focus:ring-emerald-500/40 dark:border-slate-800/70 dark:hover:bg-slate-900/40 ${flashClass}`}
     >
       <td className="py-3 pl-4 pr-2">
         {profile.logo ? (
@@ -124,7 +138,11 @@ export function TickerTableRow({ ticker, totalValue, onRemove }: Props) {
       </td>
       <td className="py-3 pl-2 pr-4">
         <button
-          onClick={onRemove}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          onKeyDown={(e) => e.stopPropagation()}
           className="rounded p-1 text-slate-400 opacity-0 transition-opacity hover:text-red-500 group-hover:opacity-100 focus:opacity-100 dark:text-slate-600 dark:hover:text-red-400"
           aria-label={`Remove ${ticker.symbol}`}
         >
