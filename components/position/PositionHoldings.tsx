@@ -251,7 +251,7 @@ function HoldingsView({
       </div>
 
       {showRows && (
-        <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800/70">
+        <div className="mt-4 overflow-hidden border-t border-slate-200 dark:border-slate-800/70 sm:rounded-lg sm:border">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-[10px] uppercase tracking-wider text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60">
@@ -299,7 +299,7 @@ function HoldingsView({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white/60 p-4 dark:border-slate-800/70 dark:bg-slate-900/40 sm:p-5">
+    <section className="border-b border-slate-200 px-4 pb-5 dark:border-slate-800/70 sm:rounded-xl sm:border sm:bg-white/60 sm:p-5 sm:dark:bg-slate-900/40">
       <div className="mb-3 font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-500">
         Holdings
       </div>

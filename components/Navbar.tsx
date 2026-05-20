@@ -15,12 +15,12 @@ export function Navbar() {
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
           <Link
             href="/"
-            className="font-mono text-base font-bold tracking-tight text-slate-900 transition-colors hover:text-black dark:text-slate-100 dark:hover:text-white sm:text-lg"
+            className="font-mono text-base font-medium uppercase tracking-[0.18em] text-slate-900 transition-colors hover:text-black dark:text-slate-100 dark:hover:text-white sm:text-[15px]"
           >
             Port Pulse
           </Link>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {connState !== "idle" && <ConnectionPill state={connState} />}
           <ThemeToggle />
           <AuthButton />
@@ -35,7 +35,7 @@ function ConnectionPill({ state }: { state: ConnectionState }) {
     state === "open" ? "bg-emerald-500" : "bg-amber-500 dark:bg-amber-400";
 
   return (
-    <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/70 px-2 py-1 text-[11px] font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 sm:px-2.5">
+    <div className="inline-flex h-8 items-center gap-1.5 rounded-full border border-slate-200 bg-white/70 px-2.5 text-[11px] font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400 sm:px-3">
       <span className="relative inline-flex h-1.5 w-1.5">
         {state === "open" && (
           <span className="absolute inset-0 inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-60 dark:bg-emerald-400" />

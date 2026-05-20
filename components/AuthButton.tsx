@@ -36,14 +36,18 @@ export function AuthButton() {
             setBusy(false);
           }
         }}
-        className="group inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white/60 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
-        title="Sign out"
+        aria-label="Sign out"
+        title={`Sign out${display ? ` (${display})` : ""}`}
+        className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-300 bg-white/60 px-2 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 sm:px-2.5"
       >
-        <span className="hidden sm:inline">{display}</span>
-        <span className="sm:hidden">●</span>
-        <span className="text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300">
-          {busy ? "…" : "Sign out"}
+        <span className="hidden max-w-[180px] truncate sm:inline">
+          {display}
         </span>
+        {busy ? (
+          <span className="font-mono text-slate-500">…</span>
+        ) : (
+          <LogoutIcon />
+        )}
       </button>
     );
   }
@@ -59,11 +63,35 @@ export function AuthButton() {
           setBusy(false);
         }
       }}
-      className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white/60 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
+      className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-300 bg-white/60 px-2.5 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
     >
       <GoogleIcon />
-      <span>{busy ? "Opening…" : "Sign in with Google"}</span>
+      <span className="hidden sm:inline">
+        {busy ? "Opening…" : "Sign in with Google"}
+      </span>
+      <span className="sm:hidden">{busy ? "…" : "Sign in"}</span>
     </button>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className="text-slate-500 dark:text-slate-400"
+    >
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
   );
 }
 

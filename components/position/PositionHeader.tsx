@@ -60,7 +60,7 @@ export function PositionHeader({ symbol, fallbackName }: Props) {
   const displayName = profile.name || fallbackName || "";
 
   return (
-    <header className="space-y-4">
+    <header className="space-y-4 px-4 sm:px-0">
       <Link
         href="/"
         className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-widest text-slate-500 transition-colors hover:text-slate-900 dark:hover:text-slate-100"

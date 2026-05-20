@@ -273,7 +273,7 @@ export function PositionChart({ symbol }: Props) {
   }, [points, theme, isUp, range]);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white/60 p-4 dark:border-slate-800/70 dark:bg-slate-900/40 sm:p-5">
+    <section className="px-4 pb-5 sm:rounded-xl sm:border sm:border-slate-200 sm:bg-white/60 sm:p-5 sm:dark:border-slate-800/70 sm:dark:bg-slate-900/40">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-500">
