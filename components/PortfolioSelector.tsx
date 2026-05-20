@@ -56,18 +56,6 @@ export function PortfolioSelector() {
     setModal({ kind: "create" });
   }
 
-  function openRename() {
-    setOpen(false);
-    if (!active) return;
-    setModal({ kind: "rename", portfolio: active });
-  }
-
-  function openDelete() {
-    setOpen(false);
-    if (!active) return;
-    setModal({ kind: "delete", portfolio: active });
-  }
-
   return (
     <>
       <div ref={wrapperRef} className="relative inline-block">
@@ -134,26 +122,6 @@ export function PortfolioSelector() {
               className="block w-full px-3 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
             >
               + New portfolio
-            </button>
-            <button
-              type="button"
-              onClick={openRename}
-              className="block w-full px-3 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
-            >
-              Rename current
-            </button>
-            <button
-              type="button"
-              onClick={openDelete}
-              disabled={portfolios.length <= 1}
-              title={
-                portfolios.length <= 1
-                  ? "You need at least one portfolio."
-                  : undefined
-              }
-              className="block w-full px-3 py-1.5 text-left text-xs text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-transparent dark:text-red-400 dark:hover:bg-red-500/10 dark:disabled:text-slate-600 dark:disabled:hover:bg-transparent"
-            >
-              Delete current
             </button>
           </div>
         )}

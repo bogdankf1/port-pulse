@@ -66,3 +66,25 @@ export type PositionDetails = {
   };
   portfolios: PositionPortfolioRow[];
 };
+
+export type SectorSlice = {
+  sector: string;
+  value: number;
+  percent: number;
+  symbols: string[];
+};
+
+export type InsightsResponse = {
+  concentration_risk: string | null;
+  sector_tilt: string | null;
+  winners: string | null;
+  losers: string | null;
+  suggestion: string | null;
+};
+
+export type InsightsSectionKey =
+  | "concentration_risk"
+  | "sector_tilt"
+  | "winners"
+  | "losers"
+  | "suggestion";

@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { TickerTableRow } from "./TickerTableRow";
+import { TickerCard } from "./TickerCard";
+import { ConfirmModal } from "./ConfirmModal";
 import { getPriceSync, usePortfolioVersion } from "@/lib/finnhub";
 import { getProfileNameSync } from "@/lib/profile";
 import type { Ticker } from "@/types";
@@ -126,6 +128,9 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
   const symbols = useMemo(() => tickers.map((t) => t.symbol), [tickers]);
   const version = usePortfolioVersion(symbols);
   const [sort, setSort] = useState<SortState | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
+
+  const requestRemove = (symbol: string) => setPendingRemoval(symbol);
 
   const totals = useMemo(
     () => computeTotals(tickers),
@@ -163,7 +168,48 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
         : "text-red-600 dark:text-red-400";
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white/60 dark:border-slate-800/70 dark:bg-slate-900/40">
+    <>
+      {/* Mobile: card list (< sm) — edge-to-edge, no outer chrome */}
+      <div className="sm:hidden">
+        {sortedTickers.map((t) => (
+          <TickerCard
+            key={t.symbol}
+            ticker={t}
+            totalValue={totals.marketValue}
+            onRemove={() => requestRemove(t.symbol)}
+          />
+        ))}
+        <div className="flex items-baseline justify-between gap-3 border-t-2 border-slate-300 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300">
+            Total
+          </span>
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="font-mono text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">
+              {totals.hasAnyValue ? (
+                `$${formatMoney(totals.marketValue)}`
+              ) : (
+                <span className="text-slate-400 dark:text-slate-600">—</span>
+              )}
+            </span>
+            {totals.pl != null && (
+              <span
+                className={`font-mono text-[11px] tabular-nums ${totalPlColor}`}
+              >
+                {totalPlPositive ? "+" : "−"}${formatMoney(Math.abs(totals.pl))}
+                {totalPlPct != null && (
+                  <span className="ml-1 opacity-80">
+                    {totalPlPositive ? "+" : "−"}
+                    {Math.abs(totalPlPct).toFixed(2)}%
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop / tablet: table (≥ sm) */}
+      <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white/60 dark:border-slate-800/70 dark:bg-slate-900/40 sm:block">
       <table className="min-w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60">
@@ -201,7 +247,7 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
               key={t.symbol}
               ticker={t}
               totalValue={totals.marketValue}
-              onRemove={() => onRemove(t.symbol)}
+              onRemove={() => requestRemove(t.symbol)}
             />
           ))}
         </tbody>
@@ -248,7 +294,29 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
           </tr>
         </tfoot>
       </table>
-    </div>
+      </div>
+      <ConfirmModal
+        open={pendingRemoval != null}
+        title="Remove position"
+        body={
+          <>
+            Remove{" "}
+            <code className="rounded bg-slate-100 px-1 py-0.5 font-mono text-xs text-slate-900 dark:bg-slate-800 dark:text-slate-100">
+              {pendingRemoval}
+            </code>{" "}
+            from this portfolio? You can add it back later.
+          </>
+        }
+        confirmLabel="Remove"
+        busyLabel="Removing…"
+        destructive
+        onConfirm={() => {
+          if (pendingRemoval) onRemove(pendingRemoval);
+          setPendingRemoval(null);
+        }}
+        onCancel={() => setPendingRemoval(null)}
+      />
+    </>
   );
 }
 
