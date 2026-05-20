@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AuthButton } from "./AuthButton";
 import { ThemeToggle } from "./ThemeToggle";
+import { MarketStatusPill } from "./MarketStatusPill";
 import { useConnectionState } from "@/lib/finnhub";
 import type { ConnectionState } from "@/types";
 
@@ -21,6 +22,7 @@ export function Navbar() {
           </Link>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2">
+          <MarketStatusPill />
           {connState !== "idle" && <ConnectionPill state={connState} />}
           <ThemeToggle />
           <AuthButton />
