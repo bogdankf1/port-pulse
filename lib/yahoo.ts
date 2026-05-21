@@ -61,6 +61,15 @@ export function resolveInterval(range: HistoryRange, override?: string | null): 
   return RANGE_MAP[range].interval;
 }
 
+/**
+ * Translate an internal ticker symbol to the form Yahoo expects.
+ * Yahoo uses a dash for share-class separators (BRK-B, BF-B), while the
+ * rest of the app — and most other vendors — uses a dot (BRK.B, BF.B).
+ */
+export function toYahooSymbol(symbol: string): string {
+  return symbol.replace(/\./g, "-");
+}
+
 export async function fetchYahooChart(
   symbol: string,
   range: HistoryRange,
@@ -68,8 +77,9 @@ export async function fetchYahooChart(
 ): Promise<YahooFetchResult> {
   const mapped = RANGE_MAP[range];
   const interval = resolveInterval(range, intervalOverride);
+  const yahooSymbol = toYahooSymbol(symbol);
   const url =
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}` +
     `?range=${encodeURIComponent(mapped.yahooRange)}&interval=${encodeURIComponent(interval)}&includePrePost=false`;
   const revalidate = interval === "5m" || interval === "15m" ? 60 : 3600;
 
