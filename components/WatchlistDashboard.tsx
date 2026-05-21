@@ -27,6 +27,7 @@ import { PortfolioSelector } from "./PortfolioSelector";
 import { PortfolioGearMenu } from "./PortfolioGearMenu";
 import { PortfolioHeatmap } from "./PortfolioHeatmap";
 import { SectorBreakdown } from "./SectorBreakdown";
+import { RiskMetricsPanel } from "./RiskMetricsPanel";
 import { Uploader } from "./Uploader";
 import { UploaderModal } from "./UploaderModal";
 import { AddTickerModal } from "./AddTickerModal";
@@ -152,6 +153,7 @@ export function WatchlistDashboard() {
       {tickers.length > 0 ? (
         <>
           <SectorBreakdown tickers={tickers} />
+          <RiskMetricsPanel tickers={tickers} />
           {view === "table" ? (
             <PortfolioTable
               tickers={tickers}
