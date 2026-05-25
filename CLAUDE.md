@@ -183,3 +183,52 @@ NEXT_PUBLIC_FINNHUB_TOKEN=
 - All API keys go in `.env.local`, never committed
 - No external UI component libraries — custom components only, styled with Tailwind
 - The app should be fully usable on mobile (portrait) — the dashboard especially
+
+---
+
+## Superpowers — always use the right skill for the job
+
+Always invoke the appropriate skill when its trigger conditions apply. Don't reinvent what a skill already does. Match the task to the skill below:
+
+**Code quality & verification**
+- `verify` — after any non-trivial change, run the app and confirm the change actually works in the browser (not just type-checks). Required before reporting a UI/frontend task as done.
+- `simplify` — after writing or changing code, sweep for reuse opportunities, dead code, premature abstractions, and over-engineering. Fix what you find.
+- `review` — review a pull request end-to-end.
+- `security-review` — before shipping anything that touches auth, API keys, user input, file uploads (Uploader.tsx), or the parse route. This project has all of those.
+
+**Running the app**
+- `run` — launch the Next.js dev server and drive the app to see a change working. Use whenever you need to confirm behavior in the real app.
+
+**Claude API work**
+- `claude-api` — REQUIRED whenever touching `lib/claude.ts`, `app/api/parse/route.ts`, or anything calling the Anthropic SDK. Covers prompt caching, model selection (Opus/Sonnet/Haiku), vision usage, and migrations between Claude versions.
+
+**PR workflow**
+- `review-pr` — review a specific PR by number.
+- `address-review` — respond to and implement review feedback on your own PR.
+- `implement-ticket` — implement a ticket from scratch given a ticket number and description.
+
+**Harness & environment**
+- `update-config` — any time the user wants to change `settings.json`, add permissions, set env vars, configure hooks, or set up automated behaviors ("from now on when X").
+- `fewer-permission-prompts` — when permission prompts are getting noisy, scan transcripts and add a safe allowlist.
+- `keybindings-help` — rebinding keys or editing `~/.claude/keybindings.json`.
+
+**Scheduling & loops**
+- `loop` — run a prompt/slash command on a recurring interval (e.g. poll a deploy every 5m). Not for one-off tasks.
+- `schedule` — create cron-scheduled remote agents, or one-time future runs ("remind me to check X tomorrow").
+
+**Figma**
+- `figma:figma-use` — MANDATORY before any `use_figma` write/JS-execution call.
+- `figma:figma-generate-diagram` — MANDATORY before any `generate_diagram` call.
+- `figma:figma-implement-design` — translating a Figma file into production code.
+- `figma:figma-generate-design` — pushing an app page/view back into Figma.
+- `figma:figma-generate-library` — building or updating a design system in Figma from code.
+- `figma:figma-create-design-system-rules` — generating project-specific Figma-to-code rules.
+- `figma:figma-code-connect` — creating/maintaining `.figma.ts`/`.figma.js` Code Connect templates.
+- `figma:figma-use-figjam` — when working in a FigJam (not Figma) file via the MCP tool.
+
+**Telegram**
+- `telegram:configure` — first-time setup (saving bot token, reviewing policy).
+- `telegram:access` — pair, approve, edit allowlists, or change channel policy.
+
+**Project setup**
+- `init` — initialize a new `CLAUDE.md` (this file already exists — skip).
