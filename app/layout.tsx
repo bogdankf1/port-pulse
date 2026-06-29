@@ -39,6 +39,16 @@ export default function RootLayout({
         </Script>
         <Navbar />
         {children}
+        <footer className="mt-auto border-t border-slate-200/80 px-4 py-4 dark:border-slate-800/70 sm:px-6">
+          <a
+            href="https://built-by-bohdan.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-xs font-medium text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+          >
+            Built by Bohdan
+          </a>
+        </footer>
       </body>
     </html>
   );
