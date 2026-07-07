@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ModalShell } from "./ModalShell";
 
 type Props = {
   open: boolean;
@@ -31,19 +32,6 @@ export function ConfirmModal({
   useEffect(() => {
     if (!open) return;
     cancelRef.current?.focus();
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape" && !busy) {
-        e.stopPropagation();
-        onCancel();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
   }, [open, busy, onCancel]);
 
   if (!open) return null;
@@ -63,21 +51,11 @@ export function ConfirmModal({
     : "bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-400";
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="confirm-modal-title"
+    <ModalShell
+      onClose={onCancel}
+      labelledBy="confirm-modal-title"
+      disabled={busy}
     >
-      <button
-        type="button"
-        aria-label="Close"
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm dark:bg-black/60"
-        onClick={() => {
-          if (!busy) onCancel();
-        }}
-        tabIndex={-1}
-      />
       <div className="relative w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         <h2
           id="confirm-modal-title"
@@ -110,6 +88,6 @@ export function ConfirmModal({
           </button>
         </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }

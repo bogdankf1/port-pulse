@@ -6,6 +6,7 @@ import { TickerCard } from "./TickerCard";
 import { ConfirmModal } from "./ConfirmModal";
 import { getPriceSync, usePortfolioVersion } from "@/lib/finnhub";
 import { getProfileNameSync } from "@/lib/profile";
+import { formatMoney, plColor } from "@/lib/format";
 import type { Ticker } from "@/types";
 
 type Props = {
@@ -161,11 +162,7 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
       ? (totals.pl / totals.costBasis) * 100
       : null;
   const totalPlColor =
-    totals.pl == null
-      ? "text-slate-500"
-      : totalPlPositive
-        ? "text-emerald-600 dark:text-emerald-400"
-        : "text-red-600 dark:text-red-400";
+    totals.pl == null ? "text-slate-500" : plColor(totals.pl);
 
   return (
     <>
@@ -318,13 +315,6 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
       />
     </>
   );
-}
-
-function formatMoney(n: number): string {
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 function SortHeader({

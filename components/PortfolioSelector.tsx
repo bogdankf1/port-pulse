@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   getActiveIdServerSnapshot,
   getActivePortfolioId,
@@ -10,6 +10,7 @@ import {
   subscribeActivePortfolio,
   subscribePortfolios,
 } from "@/lib/portfolios";
+import { useDismissable } from "@/hooks/useDismissable";
 import {
   PortfolioModal,
   type PortfolioModalState,
@@ -29,23 +30,7 @@ export function PortfolioSelector() {
 
   const [open, setOpen] = useState(false);
   const [modal, setModal] = useState<PortfolioModalState>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
-    }
-    function onEsc(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onEsc);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onEsc);
-    };
-  }, [open]);
+  const wrapperRef = useDismissable(open, setOpen);
 
   if (portfolios.length === 0) return null;
 

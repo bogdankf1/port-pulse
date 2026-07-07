@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { Uploader } from "./Uploader";
+import { ModalShell } from "./ModalShell";
 
 type Props = {
   open: boolean;
@@ -9,39 +9,10 @@ type Props = {
 };
 
 export function UploaderModal({ open, onClose }: Props) {
-  useEffect(() => {
-    if (!open) return;
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        onClose();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prev;
-    };
-  }, [open, onClose]);
-
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="uploader-modal-title"
-    >
-      <button
-        type="button"
-        aria-label="Close"
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm dark:bg-black/60"
-        onClick={onClose}
-        tabIndex={-1}
-      />
+    <ModalShell onClose={onClose} labelledBy="uploader-modal-title">
       <div className="relative w-full max-w-xl rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-4 flex items-center justify-between">
           <h2
@@ -71,6 +42,6 @@ export function UploaderModal({ open, onClose }: Props) {
         </p>
         <Uploader mode="merge" onComplete={onClose} />
       </div>
-    </div>
+    </ModalShell>
   );
 }

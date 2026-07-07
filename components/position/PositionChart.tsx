@@ -20,6 +20,7 @@ import {
   subscribeTheme,
   type Theme,
 } from "@/lib/theme";
+import { plColor } from "@/lib/format";
 import type { HistoryPoint, HistoryRange } from "@/types";
 
 type Props = { symbol: string };
@@ -282,11 +283,7 @@ export function PositionChart({ symbol }: Props) {
           <div className="mt-0.5 flex items-baseline gap-2">
             {points.length >= 2 && (
               <span
-                className={`font-mono text-sm tabular-nums ${
-                  isUp
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-red-600 dark:text-red-400"
-                }`}
+                className={`font-mono text-sm tabular-nums ${plColor(netChange)}`}
               >
                 {isUp ? "+" : "−"}${Math.abs(netChange).toFixed(2)} (
                 {((netChange / points[0].value) * 100).toFixed(2)}%)

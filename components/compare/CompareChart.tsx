@@ -24,6 +24,7 @@ import {
   type Theme,
 } from "@/lib/theme";
 import { paletteColor, type CompareSeries } from "@/lib/compare";
+import { plColor } from "@/lib/format";
 
 type Props = {
   series: CompareSeries[];
@@ -263,13 +264,7 @@ export function CompareChart({ series, loading, error }: Props) {
                   <span className="flex-1 truncate text-slate-600 dark:text-slate-400">
                     {row.label}
                   </span>
-                  <span
-                    className={
-                      row.pct >= 0
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-red-600 dark:text-red-400"
-                    }
-                  >
+                  <span className={plColor(row.pct)}>
                     {formatPct(row.pct)}
                   </span>
                 </li>

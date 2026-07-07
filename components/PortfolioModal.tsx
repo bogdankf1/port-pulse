@@ -12,6 +12,7 @@ import {
   deletePortfolio,
   renamePortfolio,
 } from "@/lib/portfolios";
+import { ModalShell } from "./ModalShell";
 import type { Portfolio } from "@/types";
 
 export type PortfolioModalState =
@@ -53,22 +54,6 @@ function ModalImpl({
       cancelRef.current?.focus();
     }
   }, [isText]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.stopPropagation();
-        if (!busy) onClose();
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [busy, onClose]);
 
   async function handleSubmit(e?: FormEvent) {
     if (e) e.preventDefault();
@@ -114,21 +99,11 @@ function ModalImpl({
   const meta = metaFor(state);
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="portfolio-modal-title"
+    <ModalShell
+      onClose={onClose}
+      labelledBy="portfolio-modal-title"
+      disabled={busy}
     >
-      <button
-        type="button"
-        aria-label="Close"
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm dark:bg-black/60"
-        onClick={() => {
-          if (!busy) onClose();
-        }}
-        tabIndex={-1}
-      />
       <form
         onSubmit={handleSubmit}
         className="relative w-full max-w-sm rounded-xl border border-slate-200 bg-white p-5 shadow-2xl dark:border-slate-800 dark:bg-slate-900"
@@ -185,7 +160,7 @@ function ModalImpl({
           </button>
         </div>
       </form>
-    </div>
+    </ModalShell>
   );
 }
 

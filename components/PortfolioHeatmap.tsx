@@ -15,6 +15,7 @@ import {
   subscribeTheme,
   type Theme,
 } from "@/lib/theme";
+import { formatCompactMoney } from "@/lib/format";
 
 type Props = {
   tickers: Ticker[];
@@ -71,12 +72,6 @@ function colorForPct(pct: number | null, theme: Theme): string {
   const abs = Math.min(Math.abs(pct), 3) / 3; // 0..1 over 0..3%
   const idx = Math.min(5, Math.floor(abs * 6));
   return pct > 0 ? pos[idx] : neg[idx];
-}
-
-function formatMoney(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${n.toFixed(0)}`;
 }
 
 function buildTiles(tickers: Ticker[]): HeatTile[] {
@@ -278,7 +273,7 @@ export function PortfolioHeatmap({ tickers }: Props) {
                       <div style={{ opacity: 0.7, fontSize: 11 }}>{tile.name}</div>
                     )}
                     <div style={{ marginTop: 4 }}>
-                      {formatMoney(tile.size)} ·{" "}
+                      {formatCompactMoney(tile.size)} ·{" "}
                       {(tile.percent * 100).toFixed(1)}%
                     </div>
                     <div>Day: {dailyLabel}</div>

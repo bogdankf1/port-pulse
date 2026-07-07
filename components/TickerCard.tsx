@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { usePrice } from "@/lib/finnhub";
 import { useCompanyProfile } from "@/lib/profile";
+import { usePriceFlash } from "@/hooks/usePriceFlash";
+import { formatMoney, formatQty, plColor } from "@/lib/format";
 import type { Ticker } from "@/types";
 
 type Props = {
@@ -20,29 +21,6 @@ export function TickerCard({ ticker, totalValue, onRemove }: Props) {
 
   const href = `/position/${encodeURIComponent(ticker.symbol)}`;
   const navigate = () => router.push(href);
-  const [flash, setFlash] = useState<"up" | "down" | null>(null);
-  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastSeen = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (currentPrice == null) return;
-    if (lastSeen.current != null && currentPrice !== lastSeen.current) {
-      const dir = currentPrice > lastSeen.current ? "up" : "down";
-      setFlash(dir);
-      if (flashTimer.current != null) clearTimeout(flashTimer.current);
-      flashTimer.current = setTimeout(() => {
-        setFlash(null);
-        flashTimer.current = null;
-      }, 600);
-    }
-    lastSeen.current = currentPrice;
-  }, [currentPrice]);
-
-  useEffect(() => {
-    return () => {
-      if (flashTimer.current != null) clearTimeout(flashTimer.current);
-    };
-  }, []);
 
   const qty = ticker.quantity;
   const entry = ticker.entryPrice;
@@ -54,20 +32,11 @@ export function TickerCard({ ticker, totalValue, onRemove }: Props) {
   const portfolioPct =
     value != null && totalValue > 0 ? (value / totalValue) * 100 : null;
 
-  const flashClass =
-    flash === "up"
-      ? "flash-up-row"
-      : flash === "down"
-        ? "flash-down-row"
-        : "";
+  const flashClass = usePriceFlash(currentPrice);
 
   const plPositive = pl != null && pl >= 0;
-  const plColor =
-    pl == null
-      ? "text-slate-400 dark:text-slate-600"
-      : plPositive
-        ? "text-emerald-600 dark:text-emerald-400"
-        : "text-red-600 dark:text-red-400";
+  const plClass =
+    pl == null ? "text-slate-400 dark:text-slate-600" : plColor(pl);
 
   return (
     <article
@@ -132,7 +101,7 @@ export function TickerCard({ ticker, totalValue, onRemove }: Props) {
             )}
           </div>
           <div
-            className={`font-mono text-[11px] tabular-nums leading-tight ${plColor}`}
+            className={`font-mono text-[11px] tabular-nums leading-tight ${plClass}`}
           >
             {pl != null ? (
               <>
@@ -208,19 +177,4 @@ function InitialBadge({ label }: { label: string }) {
       {text}
     </div>
   );
-}
-
-function formatMoney(n: number): string {
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatQty(n: number): string {
-  if (Number.isInteger(n)) return n.toLocaleString("en-US");
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  });
 }

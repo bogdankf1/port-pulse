@@ -21,6 +21,7 @@ import {
   subscribeActivePortfolio,
   subscribePortfolios,
 } from "@/lib/portfolios";
+import { formatMoney, formatQty, plColor } from "@/lib/format";
 import type { PositionDetails, PositionPortfolioRow } from "@/types";
 
 type Props = { symbol: string };
@@ -199,12 +200,7 @@ function HoldingsView({
   const plPct =
     pl != null && hasCost && costBasis > 0 ? (pl / costBasis) * 100 : null;
   const plPositive = pl != null && pl >= 0;
-  const plColor =
-    pl == null
-      ? "text-slate-500"
-      : plPositive
-        ? "text-emerald-600 dark:text-emerald-400"
-        : "text-red-600 dark:text-red-400";
+  const plClass = pl == null ? "text-slate-500" : plColor(pl);
 
   const showRows = rows.length > 0 && rows.some((r) => r.quantity != null);
 
@@ -229,7 +225,7 @@ function HoldingsView({
         />
         <Stat
           label="P&L"
-          valueClass={plColor}
+          valueClass={plClass}
           value={
             pl != null ? (
               <>
@@ -333,19 +329,4 @@ function Stat({
 
 function Em({ children }: { children: React.ReactNode }) {
   return <span className="text-slate-400 dark:text-slate-600">{children}</span>;
-}
-
-function formatMoney(n: number): string {
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatQty(n: number): string {
-  if (Number.isInteger(n)) return n.toLocaleString("en-US");
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
-  });
 }

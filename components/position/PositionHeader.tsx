@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useFinnhubPrices, usePrice } from "@/lib/finnhub";
 import { useCompanyProfile } from "@/lib/profile";
 import { PositionLinks } from "./PositionLinks";
+import { plColor } from "@/lib/format";
 
 type Props = {
   symbol: string;
@@ -48,11 +49,7 @@ export function PositionHeader({ symbol, fallbackName }: Props) {
     change != null && prev != null && prev !== 0 ? (change / prev) * 100 : null;
   const changePositive = change != null && change >= 0;
   const changeColor =
-    change == null
-      ? "text-slate-500"
-      : changePositive
-        ? "text-emerald-600 dark:text-emerald-400"
-        : "text-red-600 dark:text-red-400";
+    change == null ? "text-slate-500" : plColor(change);
 
   const flashClass =
     flash === "up" ? "flash-up" : flash === "down" ? "flash-down" : "";

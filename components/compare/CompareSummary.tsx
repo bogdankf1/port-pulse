@@ -7,6 +7,7 @@ import {
   subscribeTheme,
 } from "@/lib/theme";
 import { paletteColor, type CompareSeries } from "@/lib/compare";
+import { plColor } from "@/lib/format";
 
 type Props = { series: CompareSeries[] };
 
@@ -74,11 +75,7 @@ export function CompareSummary({ series }: Props) {
                   : formatPct(r.diff)}
               </td>
               <td
-                className={`py-2 text-right tabular-nums ${
-                  r.diff >= 0
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-red-600 dark:text-red-400"
-                }`}
+                className={`py-2 text-right tabular-nums ${plColor(r.diff)}`}
               >
                 {formatPct(r.diff)}
               </td>
