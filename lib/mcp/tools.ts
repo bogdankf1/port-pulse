@@ -5,9 +5,13 @@ import { z } from "zod";
 // resolve on the server.
 import { HISTORY_RANGES } from "@/lib/history";
 import { fetchYahooChart, YahooFetchError } from "@/lib/yahoo";
+// lib/sectors.ts exports React hooks and must not be imported here; the map in
+// lib/sectorMap.ts is the synchronous lookup the sectors route also uses.
+import { lookupSector } from "@/lib/sectorMap";
 import type { HistoryRange } from "@/types";
 import type { McpAuthContext } from "./auth";
-import { SYMBOL_RE } from "./config";
+import { MAX_SYMBOLS, SYMBOL_RE } from "./config";
+import { computePortfolioRisk } from "./risk";
 import { createUserClient } from "./supabase";
 import { buildPortfolioDetail } from "./portfolio";
 import { fetchCurrentPrices } from "./quotes";
@@ -192,4 +196,106 @@ export async function getPriceHistory(
     }
     throw err;
   }
+}
+
+export const getRiskMetricsSchema = z.object({
+  portfolio_id: z.string().uuid(),
+});
+
+export async function getRiskMetrics(
+  ctx: McpAuthContext,
+  args: { portfolio_id: string },
+) {
+  const supabase = createUserClient(ctx);
+
+  const { data, error } = await supabase
+    .from("watchlist_items")
+    .select("symbol, quantity")
+    .eq("portfolio_id", args.portfolio_id)
+    .eq("user_id", ctx.userId);
+
+  if (error) throw new Error(`Failed to load holdings: ${error.message}`);
+
+  const holdings = (data ?? [])
+    .map((r) => ({
+      symbol: r.symbol as string,
+      quantity: (r.quantity as number | null) ?? 0,
+    }))
+    .filter((h) => h.quantity > 0)
+    .slice(0, MAX_SYMBOLS);
+
+  if (holdings.length === 0) {
+    return {
+      message:
+        "Risk metrics need holdings with a quantity. This portfolio has none recorded.",
+    };
+  }
+
+  return computePortfolioRisk(holdings);
+}
+
+export const getSectorBreakdownSchema = z.object({
+  portfolio_id: z.string().uuid(),
+});
+
+export async function getSectorBreakdown(
+  ctx: McpAuthContext,
+  args: { portfolio_id: string },
+) {
+  const supabase = createUserClient(ctx);
+
+  const { data, error } = await supabase
+    .from("watchlist_items")
+    .select("symbol, quantity")
+    .eq("portfolio_id", args.portfolio_id)
+    .eq("user_id", ctx.userId);
+
+  if (error) throw new Error(`Failed to load holdings: ${error.message}`);
+
+  const rows = (data ?? [])
+    .map((r) => ({
+      symbol: r.symbol as string,
+      quantity: (r.quantity as number | null) ?? 0,
+    }))
+    .filter((h) => h.quantity > 0);
+
+  if (rows.length === 0) {
+    return {
+      message:
+        "A sector breakdown needs holdings with a quantity. This portfolio has none recorded.",
+    };
+  }
+
+  const prices = await fetchCurrentPrices(rows.map((r) => r.symbol));
+
+  const byName = new Map<string, { value: number; symbols: string[] }>();
+  let total = 0;
+  const missing_symbols: string[] = [];
+
+  for (const row of rows) {
+    const price = prices.get(row.symbol);
+    if (price === undefined) {
+      missing_symbols.push(row.symbol);
+      continue;
+    }
+    const value = price * row.quantity;
+    total += value;
+
+    const sector = lookupSector(row.symbol) ?? "Unknown";
+    const entry = byName.get(sector) ?? { value: 0, symbols: [] };
+    entry.value += value;
+    entry.symbols.push(row.symbol);
+    byName.set(sector, entry);
+  }
+
+  const sectors = [...byName.entries()]
+    .map(([sector, e]) => ({
+      sector,
+      value: e.value,
+      percent: total > 0 ? (e.value / total) * 100 : 0,
+      symbols: e.symbols,
+    }))
+    .sort((a, b) => b.value - a.value);
+
+  return { sectors, total_value: total, missing_symbols };
 }

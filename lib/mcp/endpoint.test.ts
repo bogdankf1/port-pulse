@@ -132,7 +132,27 @@ describe("POST /api/mcp", () => {
 
     expect(status).toBe(200);
     const names = (json.result?.tools ?? []).map((t: { name: string }) => t.name);
-    expect(names).toContain("list_portfolios");
+    expect(names.sort()).toEqual([
+      "get_portfolio",
+      "get_position",
+      "get_price_history",
+      "get_risk_metrics",
+      "get_sector_breakdown",
+      "list_portfolios",
+    ]);
+  });
+
+  it("exposes every tool with a description and an input schema", async () => {
+    await call(INIT, VALID_TOKEN);
+    const { json } = await call(
+      { jsonrpc: "2.0", id: 1, method: "tools/list" },
+      VALID_TOKEN,
+    );
+
+    for (const tool of json.result?.tools ?? []) {
+      expect(tool.description, `${tool.name} has no description`).toBeTruthy();
+      expect(tool.inputSchema, `${tool.name} has no inputSchema`).toBeTruthy();
+    }
   });
 
   it("passes the verified userId from the token through to the tool", async () => {

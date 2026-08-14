@@ -14,6 +14,10 @@ import {
   getPositionSchema,
   getPriceHistory,
   getPriceHistorySchema,
+  getRiskMetrics,
+  getRiskMetricsSchema,
+  getSectorBreakdown,
+  getSectorBreakdownSchema,
   listPortfolios,
   listPortfoliosSchema,
 } from "@/lib/mcp/tools";
@@ -80,6 +84,34 @@ const handler = createMcpHandler(
       },
       async (args, ctx) =>
         jsonResult(await getPriceHistory(authContextFrom(ctx.http?.authInfo), args)),
+    );
+
+    server.registerTool(
+      "get_risk_metrics",
+      {
+        title: "Get risk metrics",
+        description:
+          "Get Sharpe ratio, beta, annualized volatility and max drawdown for a " +
+          "portfolio over the last year, benchmarked against SPY.",
+        inputSchema: getRiskMetricsSchema,
+      },
+      async (args, ctx) =>
+        jsonResult(await getRiskMetrics(authContextFrom(ctx.http?.authInfo), args)),
+    );
+
+    server.registerTool(
+      "get_sector_breakdown",
+      {
+        title: "Get sector breakdown",
+        description:
+          "Break a portfolio down by sector, with value, percentage and " +
+          "constituent tickers.",
+        inputSchema: getSectorBreakdownSchema,
+      },
+      async (args, ctx) =>
+        jsonResult(
+          await getSectorBreakdown(authContextFrom(ctx.http?.authInfo), args),
+        ),
     );
   },
   { serverInfo: { name: "port-pulse", version: "1.0.0" } },
