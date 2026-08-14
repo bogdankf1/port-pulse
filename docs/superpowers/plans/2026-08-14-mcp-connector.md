@@ -358,8 +358,10 @@ export async function verifyToken(token: string) {
 }
 ```
 
-Note there is deliberately no audience check yet — Task 7 adds one if and only if
-Task 6 shows the authorization server can issue audience-bound tokens.
+Note there is deliberately no audience check. **Resolved by Task 6 (2026-08-14):
+Supabase ignores the `resource` parameter and mints `aud: "authenticated"`, a
+constant. Task 7 does NOT add an audience check — this verifier is final.** See
+Open Question 3 in the spec.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
