@@ -79,12 +79,35 @@ Steps ① – ⑥ run once, when the user adds the connector. Steady state is �
 
 ### Named inputs
 
-| Name | Value | Source |
-|---|---|---|
-| `SUPABASE_PROJECT_REF` | `kbbgyyiasbvgmfoxoeaz` | `.env.local` |
-| `PORTPULSE_ORIGIN` | *supplied by owner* — see Prerequisites | Vercel production domain |
-| MCP resource URL | `${PORTPULSE_ORIGIN}/api/mcp` | derived |
-| JWKS URL | `https://${SUPABASE_PROJECT_REF}.supabase.co/auth/v1/.well-known/jwks.json` | derived |
+All verified against the live project on 2026-08-14.
+
+| Name | Value |
+|---|---|
+| `SUPABASE_PROJECT_REF` | `kbbgyyiasbvgmfoxoeaz` |
+| `PORTPULSE_ORIGIN` | `https://port-pulse-seven.vercel.app` |
+| MCP resource URL | `https://port-pulse-seven.vercel.app/api/mcp` |
+| Issuer (`iss`) | `https://kbbgyyiasbvgmfoxoeaz.supabase.co/auth/v1` |
+| Authorization endpoint | `…/auth/v1/oauth/authorize` |
+| Token endpoint | `…/auth/v1/oauth/token` |
+| JWKS URL | `…/auth/v1/.well-known/jwks.json` |
+| AS metadata (MCP discovery) | `https://kbbgyyiasbvgmfoxoeaz.supabase.co/.well-known/oauth-authorization-server/auth/v1` |
+
+Confirmed from those documents:
+
+- Signing is **ES256** (a live P-256 key is published). No signing-key migration needed.
+- `code_challenge_methods_supported` includes `S256` — PKCE is available.
+- `scopes_supported`: `openid`, `profile`, `email`, `phone`, `offline_access`. There
+  is no mechanism for a custom scope such as `portfolio:read`, so scope cannot be
+  used to distinguish a connector token from any other token.
+- `offline_access` means Claude can hold a refresh token; consent is not re-prompted
+  every session.
+- `claims_supported` includes `sub` and not `user_id`, so `sub` is very likely the
+  Supabase user id. Still confirm against a real token at step 3.
+- **No `registration_endpoint`** is advertised. Expected — "Allow Dynamic OAuth
+  Apps" is currently off. It should appear once DCR is enabled at step 5; if it
+  does not, one-click connect is not possible and the connector must be registered
+  manually with its client ID and secret pasted into Claude's Advanced settings.
+- **No RFC 8707 resource indicator support** is advertised. See Open Question 3.
 
 ## Components
 
@@ -159,18 +182,18 @@ validated with zod schemas before any query or fetch runs.
 On every request, in order:
 
 1. Extract the bearer token; absent → 401 challenge (below).
-2. Fetch the JWKS (cached) and verify the JWT signature.
-3. Verify `iss` matches the Supabase project's issuer.
-4. **Verify `aud` equals the MCP resource URL.**
-5. Verify `exp` / `nbf`.
-6. Extract the user id claim — `sub` per OIDC; Supabase also documents a
-   `user_id` claim on OAuth-issued tokens. Confirm which carries the Supabase
-   user id at step 3 and read exactly one of them, never a fallback chain.
+2. Fetch the JWKS (cached) and verify the ES256 signature.
+3. Verify `iss` equals `https://kbbgyyiasbvgmfoxoeaz.supabase.co/auth/v1`.
+4. Verify `exp` / `nbf`.
+5. Audience binding — see Open Question 3. Strict `aud` checking is the intent;
+   whether the authorization server can satisfy it is unresolved.
+6. Extract the user id from `sub`. Read exactly one claim, never a fallback chain
+   across several claim names — a fallback chain turns a claim-shape surprise into
+   a silent authorization bug.
 
-Step 4 is the one that matters most and the one most often skipped. Without an
-audience check, a token Supabase issued to any other OAuth client would verify
-successfully here and grant access to that user's portfolio data. A token issued
-for another resource must be rejected, per the MCP authorization spec.
+Audience binding is the check that normally matters most here and the one most
+often skipped. Without it, any token this Supabase project issued to any OAuth
+client is accepted by the MCP endpoint.
 
 ### Data access
 
@@ -214,28 +237,57 @@ fallback, so neither blocks the design.
 
 2. **RLS with OAuth-server-issued tokens.** Whether a token minted by the Supabase
    OAuth server resolves `auth.uid()` in PostgREST the way a normal session token
-   does. Fallback: a service-role client with an explicit `.eq("user_id", userId)`
-   on every query — equally safe, but moves enforcement from the database into
-   application code, so RLS is preferred if it works. Resolve at step 3.
+   does. The advertised scopes are OIDC-only (`openid`, `profile`, `email`,
+   `phone`, `offline_access`) with nothing describing database access, which is
+   mild evidence against it. Fallback: a service-role client with an explicit
+   `.eq("user_id", userId)` on every query — equally safe, but moves enforcement
+   from the database into application code, so RLS is preferred if it works.
+   Resolve at step 3.
+
+3. **Audience binding (RFC 8707).** The authorization server metadata advertises no
+   resource-indicator support, so Supabase will likely mint tokens whose `aud` is
+   the OAuth client rather than the MCP resource URL. If so, the strict `aud`
+   check cannot be satisfied and must be dropped.
+
+   **Resolve at step 2**, by inspecting a real token from a manually registered
+   client. If `aud` reflects a `resource` parameter, implement the strict check. If
+   it does not, the verifier falls back to signature + issuer + expiry, and the
+   residual risk is: any token this project issued to any OAuth client, for this
+   user, is accepted at `/api/mcp`.
+
+   Why that residual risk is acceptable *for this design specifically*: every tool
+   is read-only and returns exactly the rows RLS already grants that token, so a
+   replayed token gains no authority it did not already have via PostgREST. The
+   boundary is RLS either way.
+
+   Why it is nonetheless recorded as a real limitation: this reasoning collapses
+   the moment a write tool is added. **Do not add write tools while Open Question 3
+   is unresolved in the negative** — a replayed token that can only read is a
+   non-event, and one that can delete a portfolio is not. Custom scopes are not
+   available as a substitute control (see Named inputs).
 
 ## Prerequisites (owner actions)
 
-1. **Provide the Vercel production domain** (`PORTPULSE_ORIGIN`). Needed for the
-   metadata `resource` field, the JWT audience check, Supabase's redirect
-   allowlist, and the URL entered into Claude.
-2. **Enable the OAuth 2.1 Server** — Supabase dashboard → Authentication → OAuth
-   Server. Set **Authorization Path** to `/oauth/consent`.
-3. **Confirm asymmetric JWT signing keys** — Supabase dashboard → Authentication →
-   JWT Keys. JWKS verification requires ES256/RS256; a project still on the legacy
-   shared HS256 secret needs the signing-key migration first.
-4. *(Step 5 only)* Enable dynamic client registration.
+1. ~~Provide the Vercel production domain.~~ **Done** —
+   `https://port-pulse-seven.vercel.app`.
+2. ~~Enable the OAuth 2.1 Server with authorization path `/oauth/consent`.~~
+   **Done** — verified via the dashboard; Site URL is set to the production domain.
+3. ~~Confirm asymmetric JWT signing keys.~~ **Done** — JWKS publishes a live ES256
+   key, so no signing-key migration is needed. (There is no "JWT Keys" tab under
+   Authentication in the current dashboard; reading the JWKS endpoint answers the
+   question directly and is the check to repeat if this is ever revisited.)
+4. *(Step 5 only)* Enable "Allow Dynamic OAuth Apps", then re-read the AS metadata
+   to confirm a `registration_endpoint` appeared.
 
 ## Build order
 
-1. Confirm the deployed app works on the production domain — Google OAuth redirect
-   URIs and Supabase Site URL both reflect it.
-2. Enable the Supabase OAuth server, build `/oauth/consent`, register one client
-   manually, and walk the authorization code flow by hand.
+1. Confirm sign-in works on `https://port-pulse-seven.vercel.app` — Google OAuth
+   redirect URIs and Supabase Site URL both reflect the production domain. (Deploy
+   and OAuth-server config are already done; this is a verification, not a task.)
+2. Build `/oauth/consent`, register one OAuth client manually, and walk the
+   authorization code flow by hand. **Decode the resulting access token and record
+   its `aud`, `sub`, and `role` claims** — this single observation resolves Open
+   Question 3 and informs Open Question 2, and both shape the code in step 3.
 3. Build `/api/mcp` with token verification and a single tool
    (`list_portfolios`). Verify with `@modelcontextprotocol/inspector`. Resolve
    Open Questions 1 and 2 here.
