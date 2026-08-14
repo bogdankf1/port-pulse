@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { safeNextPath } from "@/lib/redirects";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const nextParam = url.searchParams.get("next") || "/";
-  // Same-origin paths only. `new URL(next, origin)` ignores the base for an
-  // absolute URL, and a protocol-relative "//host" is absolute too.
-  const next =
-    nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+  const next = safeNextPath(url.searchParams.get("next"));
 
   if (code) {
     try {

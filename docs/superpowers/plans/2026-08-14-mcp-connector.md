@@ -430,14 +430,29 @@ argument is absolute, so `/auth/callback?next=https://evil.com` redirects off-si
 sets `next`; the consent page below is the first caller, which is why this is
 fixed here rather than left alone.
 
-Replace line 9:
+**Rejecting `//host` is not sufficient.** WHATWG URL parsing treats a backslash as
+a path separator for special schemes, so `/\evil.com` is protocol-relative exactly
+like `//evil.com` and escapes the origin. A `startsWith("//")` guard misses it —
+verified empirically, not reasoned about.
+
+Because this line has now looked correct and been wrong twice, the guard goes in
+`lib/` behind a regression test rather than staying as untestable inline logic in
+a route handler. Create `lib/redirects.ts`:
 
 ```typescript
-  const nextParam = url.searchParams.get("next") || "/";
-  // Same-origin paths only. `new URL(next, origin)` ignores the base for an
-  // absolute URL, and a protocol-relative "//host" is absolute too.
-  const next =
-    nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+export function safeNextPath(param: string | null | undefined): string {
+  const next = param || "/";
+  return /^\/(?![/\\])/.test(next) ? next : "/";
+}
+```
+
+with `lib/redirects.test.ts` covering `https://evil.com`, `//evil.com`,
+`///evil.com`, `/\evil.com`, `/\\evil.com`, `\/evil.com`, `javascript:alert(1)`,
+and confirming legitimate paths (`/dashboard`, `/oauth/consent?authorization_id=…`,
+`/a/b/c?x=1#y`) pass through unchanged. Then in the route, replace line 9 with:
+
+```typescript
+  const next = safeNextPath(url.searchParams.get("next"));
 ```
 
 - [ ] **Step 1b: Let sign-in return to a specific path**
