@@ -36,8 +36,13 @@ The app today is a Next.js 16 App Router project on Vercel with Supabase for aut
 - `app/api/risk/route.ts` and `app/api/sectors/route.ts` are stateless
   computation endpoints — they accept tickers in the request body and do not
   authenticate.
-- `lib/yahoo.ts` `fetchYahooChart()` is a server-side REST fetch, so quotes and
-  history are obtainable without a browser.
+- `lib/yahoo.ts` `fetchYahooChart(symbol, range, intervalOverride?)` is a
+  server-side REST fetch returning `{ symbol, range, interval, currency, points }`,
+  so quotes and history are obtainable without a browser. It throws
+  `YahooFetchError` with a `status` field on upstream failure.
+- `lib/history.ts` `fetchHistory()` is **client-side** — it fetches a relative
+  `/api/history` URL, which does not resolve in a server context. Tools must call
+  `fetchYahooChart` directly and must not reuse this helper.
 - Live in-app prices come from a Finnhub **WebSocket** held open by the browser
   (`lib/finnhub.ts`). This is unusable from a stateless tool call.
 
@@ -146,14 +151,19 @@ Six tools, all read-only.
 
 | Tool | Input | Output | Built on |
 |---|---|---|---|
-| `list_portfolios` | — | `[{ id, name, holdings_count, market_value }]` | `portfolios`, `watchlist_items` |
+| `list_portfolios` | — | `[{ id, name, holdings_count }]` | `portfolios`, `watchlist_items` |
 | `get_portfolio` | `portfolio_id` \| `name` (id wins if both given; name match is case-insensitive and must be unique, else error listing candidates) | per holding: `symbol, name, quantity, entry_price, current_price, market_value, unrealized_pnl, unrealized_pnl_pct, weight_pct`; plus portfolio totals | `watchlist_items` + `fetchYahooChart` |
 | `get_position` | `symbol` | aggregate across all portfolios: total quantity, cost basis, per-portfolio rows | mirrors `app/api/positions/[symbol]` |
-| `get_price_history` | `symbol`, `range` (`1D\|1M\|3M\|YTD\|1Y\|5Y`) | `{ symbol, range, interval, currency, points[] }` | `lib/history.ts` `fetchHistory` |
+| `get_price_history` | `symbol`, `range` (`1D\|1M\|3M\|YTD\|1Y\|5Y`) | `{ symbol, range, interval, currency, points[] }` | `lib/yahoo.ts` `fetchYahooChart` |
 | `get_risk_metrics` | `portfolio_id` | `{ sharpe, beta, volatility, max_drawdown, benchmark, sample_days, missing_symbols? }` | `lib/riskMetrics.ts`, benchmark SPY, 1Y window |
 | `get_sector_breakdown` | `portfolio_id` | `[{ sector, value, percent, symbols[] }]` | `lib/sectorMap.ts` |
 
 Claude performs the analysis itself from these outputs.
+
+`list_portfolios` deliberately does not return market value. Doing so would mean
+fetching a quote for every symbol in every portfolio just to answer "what
+portfolios exist" — the one call Claude makes most often and needs to be cheap.
+Value comes from `get_portfolio`, once Claude knows which portfolio it wants.
 
 ### Why there is no `get_insights` tool
 
