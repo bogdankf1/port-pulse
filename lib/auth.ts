@@ -61,10 +61,13 @@ export function isAuthReady(): boolean {
   return initialFetchDone;
 }
 
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(next?: string): Promise<void> {
   if (!isSupabaseConfigured()) return;
   const supabase = createBrowserSupabase();
-  const redirectTo = `${window.location.origin}/auth/callback`;
+  const callback = `${window.location.origin}/auth/callback`;
+  const redirectTo = next
+    ? `${callback}?next=${encodeURIComponent(next)}`
+    : callback;
   await supabase.auth.signInWithOAuth({
     provider: "google",
     options: { redirectTo },
