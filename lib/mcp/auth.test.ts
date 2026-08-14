@@ -19,7 +19,8 @@ vi.mock("server-only", () => ({}));
 // module throws on load if it's missing, so provide a placeholder for tests.
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "https://example.supabase.co";
 
-const { McpAuthError, createTokenVerifier } = await import("./auth");
+const { McpAuthError, createTokenVerifier, authContextFrom, toAuthInfo } =
+  await import("./auth");
 
 const ISSUER = "https://example.supabase.co/auth/v1";
 
@@ -150,5 +151,57 @@ describe("createTokenVerifier", () => {
     const tampered = `${token.slice(0, -4)}AAAA`;
 
     await expect(verify(tampered)).rejects.toBeInstanceOf(McpAuthError);
+  });
+});
+
+// This pair is the only thing standing between a tool handler and a query with
+// no user identity, so it is tested directly rather than through a tool.
+describe("authContextFrom", () => {
+  const ctx = {
+    userId: "user-123",
+    token: "tok",
+    clientId: "client-abc",
+    scopes: ["openid"],
+    expiresAt: 1786722245,
+  };
+
+  it("round-trips a verified context through AuthInfo", () => {
+    expect(authContextFrom(toAuthInfo(ctx))).toEqual(ctx);
+  });
+
+  it("puts the user id in AuthInfo.extra, not a top-level field", () => {
+    expect(toAuthInfo(ctx).extra).toEqual({ userId: "user-123" });
+  });
+
+  it("throws when there is no AuthInfo at all", () => {
+    expect(() => authContextFrom(undefined)).toThrow(McpAuthError);
+  });
+
+  it("throws when AuthInfo carries no userId", () => {
+    expect(() =>
+      authContextFrom({ token: "tok", clientId: "c", scopes: [] }),
+    ).toThrow(McpAuthError);
+  });
+
+  it("throws when userId is present but not a string", () => {
+    expect(() =>
+      authContextFrom({
+        token: "tok",
+        clientId: "c",
+        scopes: [],
+        extra: { userId: 12345 },
+      }),
+    ).toThrow(McpAuthError);
+  });
+
+  it("throws when userId is an empty string", () => {
+    expect(() =>
+      authContextFrom({
+        token: "tok",
+        clientId: "c",
+        scopes: [],
+        extra: { userId: "" },
+      }),
+    ).toThrow(McpAuthError);
   });
 });

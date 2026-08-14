@@ -1,0 +1,60 @@
+import { createMcpHandler, withMcpAuth } from "mcp-handler";
+import type { AuthInfo } from "@modelcontextprotocol/server";
+import { PORTPULSE_ORIGIN } from "@/lib/mcp/config";
+import {
+  McpAuthError,
+  authContextFrom,
+  toAuthInfo,
+  verifyToken,
+} from "@/lib/mcp/auth";
+import { listPortfolios, listPortfoliosSchema } from "@/lib/mcp/tools";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+/** Path only — withMcpAuth appends it to the origin to build the 401's URL. */
+const RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource/api/mcp";
+
+/** Tools return JSON as text; MCP has no richer typed-result contract here. */
+function jsonResult(value: unknown) {
+  return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] };
+}
+
+const handler = createMcpHandler(
+  (server) => {
+    server.registerTool(
+      "list_portfolios",
+      {
+        title: "List portfolios",
+        description:
+          "List the signed-in user's Port Pulse portfolios with a holdings count.",
+        inputSchema: listPortfoliosSchema,
+      },
+      async (_args, ctx) =>
+        jsonResult(await listPortfolios(authContextFrom(ctx.http?.authInfo))),
+    );
+  },
+  { serverInfo: { name: "port-pulse", version: "1.0.0" } },
+);
+
+const authenticated = withMcpAuth(
+  handler,
+  async (_req, bearer): Promise<AuthInfo | undefined> => {
+    if (!bearer) return undefined;
+    try {
+      return toAuthInfo(await verifyToken(bearer));
+    } catch (err) {
+      // A bad token is a 401, not a 500. Anything else is a real fault (JWKS
+      // unreachable, for instance) and must not be reported as invalid_token.
+      if (err instanceof McpAuthError) return undefined;
+      throw err;
+    }
+  },
+  {
+    required: true,
+    resourceMetadataPath: RESOURCE_METADATA_PATH,
+    resourceUrl: PORTPULSE_ORIGIN,
+  },
+);
+
+export { authenticated as GET, authenticated as POST, authenticated as DELETE };

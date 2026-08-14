@@ -1,4 +1,5 @@
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
+import type { AuthInfo } from "@modelcontextprotocol/server";
 import { MCP_ISSUER, SUPABASE_JWKS_URL } from "./config";
 
 export class McpAuthError extends Error {
@@ -65,6 +66,39 @@ export function createTokenVerifier(keySet: JWTVerifyGetKey, issuer: string) {
     const expiresAt = typeof payload.exp === "number" ? payload.exp : undefined;
 
     return { userId: sub, token, clientId, scopes, expiresAt };
+  };
+}
+
+/** Shape the verified context as the AuthInfo the MCP SDK carries per request. */
+export function toAuthInfo(ctx: McpAuthContext): AuthInfo {
+  return {
+    token: ctx.token,
+    clientId: ctx.clientId,
+    scopes: ctx.scopes,
+    expiresAt: ctx.expiresAt,
+    extra: { userId: ctx.userId },
+  };
+}
+
+/**
+ * Rebuild the verified context inside a tool handler.
+ *
+ * Every tool goes through this, and it throws rather than returning a partial
+ * context: if `userId` is ever absent the request did not come through
+ * `withMcpAuth`, and continuing would run a query with no user identity.
+ */
+export function authContextFrom(info: AuthInfo | undefined): McpAuthContext {
+  const userId = info?.extra?.userId;
+  if (!info || typeof userId !== "string" || userId.length === 0) {
+    throw new McpAuthError("tool invoked without a verified user");
+  }
+
+  return {
+    userId,
+    token: info.token,
+    clientId: info.clientId,
+    scopes: info.scopes,
+    expiresAt: info.expiresAt,
   };
 }
 
