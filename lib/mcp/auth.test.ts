@@ -55,7 +55,43 @@ describe("createTokenVerifier", () => {
     await expect(verify(token)).resolves.toEqual({
       userId: "user-123",
       token,
+      clientId: "",
+      scopes: [],
+      expiresAt: expect.any(Number),
     });
+  });
+
+  it("reads client_id and splits the scope claim", async () => {
+    const { privateKey, keySet } = await makeKeys();
+    const verify = createTokenVerifier(keySet, ISSUER);
+    const token = await sign(privateKey, {
+      sub: "user-123",
+      client_id: "client-abc",
+      scope: "openid email offline_access",
+    });
+
+    await expect(verify(token)).resolves.toMatchObject({
+      clientId: "client-abc",
+      scopes: ["openid", "email", "offline_access"],
+    });
+  });
+
+  // Supabase mints aud: "authenticated" for every user token (spec Open
+  // Question 3), so a resource-specific audience never appears. This pins that
+  // the verifier does not reject on audience — if someone adds a strict check,
+  // this fails and sends them to the note in auth.ts.
+  it("accepts a token regardless of its audience", async () => {
+    const { privateKey, keySet } = await makeKeys();
+    const verify = createTokenVerifier(keySet, ISSUER);
+    const token = await new SignJWT({ sub: "user-123" })
+      .setProtectedHeader({ alg: "ES256", kid: "test-key" })
+      .setIssuedAt()
+      .setIssuer(ISSUER)
+      .setAudience("authenticated")
+      .setExpirationTime("5m")
+      .sign(privateKey);
+
+    await expect(verify(token)).resolves.toMatchObject({ userId: "user-123" });
   });
 
   it("rejects a token from a different issuer", async () => {
