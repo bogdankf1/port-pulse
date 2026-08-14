@@ -1,6 +1,13 @@
 import "server-only";
 import { z } from "zod";
+// Only HISTORY_RANGES and the HistoryRange type come from @/lib/history — not
+// fetchHistory, which is client-side and issues a relative fetch that cannot
+// resolve on the server.
+import { HISTORY_RANGES } from "@/lib/history";
+import { fetchYahooChart, YahooFetchError } from "@/lib/yahoo";
+import type { HistoryRange } from "@/types";
 import type { McpAuthContext } from "./auth";
+import { SYMBOL_RE } from "./config";
 import { createUserClient } from "./supabase";
 import { buildPortfolioDetail } from "./portfolio";
 import { fetchCurrentPrices } from "./quotes";
@@ -110,4 +117,79 @@ export async function getPortfolio(
   }
 
   return { id: match.id, name: match.name, ...buildPortfolioDetail(rows, prices) };
+}
+
+export const getPositionSchema = z.object({
+  symbol: z
+    .string()
+    .transform((s) => s.trim().toUpperCase())
+    .refine((s) => SYMBOL_RE.test(s), "Not a valid ticker symbol"),
+});
+
+/** Total exposure to one ticker, aggregated across every portfolio. */
+export async function getPosition(ctx: McpAuthContext, args: { symbol: string }) {
+  const supabase = createUserClient(ctx);
+
+  const { data, error } = await supabase
+    .from("watchlist_items")
+    .select("quantity, entry_price, portfolios(id, name)")
+    .eq("user_id", ctx.userId)
+    .eq("symbol", args.symbol);
+
+  if (error) throw new Error(`Failed to load position: ${error.message}`);
+  if (!data || data.length === 0) {
+    return { message: `${args.symbol} is not held in any portfolio.` };
+  }
+
+  const prices = await fetchCurrentPrices([args.symbol]);
+  const current_price = prices.get(args.symbol) ?? null;
+
+  const portfolios = data.map((row) => {
+    const p = row.portfolios as unknown as { id: string; name: string } | null;
+    return {
+      portfolio_id: p?.id ?? null,
+      portfolio_name: p?.name ?? null,
+      quantity: (row.quantity as number | null) ?? null,
+      entry_price: (row.entry_price as number | null) ?? null,
+    };
+  });
+
+  const total_quantity = portfolios.reduce((s, p) => s + (p.quantity ?? 0), 0);
+  const allCostKnown = portfolios.every(
+    (p) => p.quantity !== null && p.entry_price !== null,
+  );
+  const cost_basis = allCostKnown
+    ? portfolios.reduce((s, p) => s + p.quantity! * p.entry_price!, 0)
+    : null;
+
+  return {
+    symbol: args.symbol,
+    current_price,
+    total_quantity,
+    cost_basis,
+    market_value: current_price !== null ? current_price * total_quantity : null,
+    portfolios,
+  };
+}
+
+export const getPriceHistorySchema = z.object({
+  symbol: z
+    .string()
+    .transform((s) => s.trim().toUpperCase())
+    .refine((s) => SYMBOL_RE.test(s), "Not a valid ticker symbol"),
+  range: z.enum(HISTORY_RANGES as unknown as [HistoryRange, ...HistoryRange[]]),
+});
+
+export async function getPriceHistory(
+  _ctx: McpAuthContext,
+  args: { symbol: string; range: HistoryRange },
+) {
+  try {
+    return await fetchYahooChart(args.symbol, args.range);
+  } catch (err) {
+    if (err instanceof YahooFetchError) {
+      throw new Error(`Price history unavailable: ${err.message}`);
+    }
+    throw err;
+  }
 }

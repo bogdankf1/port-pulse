@@ -10,6 +10,10 @@ import {
 import {
   getPortfolio,
   getPortfolioSchema,
+  getPosition,
+  getPositionSchema,
+  getPriceHistory,
+  getPriceHistorySchema,
   listPortfolios,
   listPortfoliosSchema,
 } from "@/lib/mcp/tools";
@@ -51,6 +55,31 @@ const handler = createMcpHandler(
       },
       async (args, ctx) =>
         jsonResult(await getPortfolio(authContextFrom(ctx.http?.authInfo), args)),
+    );
+
+    server.registerTool(
+      "get_position",
+      {
+        title: "Get position",
+        description:
+          "Get the user's total exposure to one ticker, aggregated across every " +
+          "portfolio.",
+        inputSchema: getPositionSchema,
+      },
+      async (args, ctx) =>
+        jsonResult(await getPosition(authContextFrom(ctx.http?.authInfo), args)),
+    );
+
+    server.registerTool(
+      "get_price_history",
+      {
+        title: "Get price history",
+        description:
+          "Get a price history series for one ticker over 1D, 1M, 3M, YTD, 1Y or 5Y.",
+        inputSchema: getPriceHistorySchema,
+      },
+      async (args, ctx) =>
+        jsonResult(await getPriceHistory(authContextFrom(ctx.http?.authInfo), args)),
     );
   },
   { serverInfo: { name: "port-pulse", version: "1.0.0" } },
