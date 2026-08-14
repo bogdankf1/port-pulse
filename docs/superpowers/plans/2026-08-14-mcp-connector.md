@@ -384,15 +384,83 @@ be obtained.
 **Files:**
 - Create: `app/oauth/consent/page.tsx`
 
-- [ ] **Step 1: Confirm the client SDK method names against the installed package**
+**API confirmed against the installed `@supabase/auth-js` on 2026-08-14** — no SDK
+upgrade needed. The real shapes, which differ from earlier drafts of this plan:
 
-Run: `grep -rn "getAuthorizationDetails\|approveAuthorization\|denyAuthorization" node_modules/@supabase/supabase-js/dist/module/ | head -20`
-Expected: matches under an `oauth` namespace on the auth client.
+```typescript
+supabase.auth.oauth.getAuthorizationDetails(id)
+//   → { data: OAuthAuthorizationDetails | OAuthRedirect }   ← a UNION
+supabase.auth.oauth.approveAuthorization(id, { skipBrowserRedirect?: boolean })
+supabase.auth.oauth.denyAuthorization(id, { skipBrowserRedirect?: boolean })
+//   → { data: { redirect_url: string } }
 
-If there are no matches, the installed `@supabase/supabase-js` (currently ^2.105.3)
-predates the OAuth server client methods. Upgrade to the latest v2 and re-run
-before writing the page. **Do not hand-roll calls to the authorize endpoint** —
-Supabase expects the `authorization_id` handshake to go through these methods.
+type OAuthAuthorizationDetails = {
+  authorization_id: string;
+  redirect_uri: string;                       // base URI, no query params
+  client: { name: string; logo_uri: string };
+  user: { id: string; email: string };
+  scope: string;                              // SPACE-SEPARATED string, not an array
+};
+type OAuthRedirect = { redirect_url: string };
+```
+
+Three consequences the page must handle:
+
+1. **Discriminate the union with `"authorization_id" in data`.** When the user has
+   already consented to these scopes, Supabase auto-approves and returns only
+   `redirect_url` — the page must redirect immediately rather than rendering a
+   consent screen against undefined fields.
+2. **`scope` is a space-separated string**, not `string[]`.
+3. **`skipBrowserRedirect` defaults to `false`, so approve/deny redirect the
+   browser themselves.** Pass `skipBrowserRedirect: true` and redirect explicitly,
+   so the page's control flow is visible in the code rather than implicit in a
+   library default.
+
+- [ ] **Step 1a: Fix the open redirect in the auth callback (security, prerequisite)**
+
+`app/auth/callback/route.ts:20` currently does:
+
+```typescript
+  return NextResponse.redirect(new URL(next, url.origin));
+```
+
+`next` comes from the query string. `new URL()` ignores its base when the first
+argument is absolute, so `/auth/callback?next=https://evil.com` redirects off-site
+— an open redirect on a trusted domain. It is dormant today only because nothing
+sets `next`; the consent page below is the first caller, which is why this is
+fixed here rather than left alone.
+
+Replace line 9:
+
+```typescript
+  const nextParam = url.searchParams.get("next") || "/";
+  // Same-origin paths only. `new URL(next, origin)` ignores the base for an
+  // absolute URL, and a protocol-relative "//host" is absolute too.
+  const next =
+    nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/";
+```
+
+- [ ] **Step 1b: Let sign-in return to a specific path**
+
+`lib/auth.ts` `signInWithGoogle()` hardcodes `redirectTo` to `/auth/callback` with
+no `next`, so a user bounced to sign-in from the consent page would lose the
+pending authorization request. Add an optional parameter; the default preserves
+today's behaviour exactly:
+
+```typescript
+export async function signInWithGoogle(next?: string): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+  const supabase = createBrowserSupabase();
+  const callback = `${window.location.origin}/auth/callback`;
+  const redirectTo = next
+    ? `${callback}?next=${encodeURIComponent(next)}`
+    : callback;
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo },
+  });
+}
+```
 
 - [ ] **Step 2: Write `app/oauth/consent/page.tsx`**
 
@@ -401,12 +469,14 @@ Supabase expects the `authorization_id` handshake to go through these methods.
 
 import { useCallback, useEffect, useState } from "react";
 import { createBrowserSupabase, isSupabaseConfigured } from "@/lib/supabase";
-import { getUser, isAuthReady, signInWithGoogle } from "@/lib/auth";
+import { signInWithGoogle } from "@/lib/auth";
 
 type Details = {
-  client_name?: string;
-  redirect_uri?: string;
-  scopes?: string[];
+  authorization_id: string;
+  redirect_uri: string;
+  client: { name: string; logo_uri: string };
+  user: { id: string; email: string };
+  scope: string;
 };
 
 export default function ConsentPage() {
@@ -429,21 +499,38 @@ export default function ConsentPage() {
       setError("Supabase is not configured.");
       return;
     }
-    if (isAuthReady() && !getUser()) {
-      void signInWithGoogle();
-      return;
-    }
 
     const supabase = createBrowserSupabase();
-    supabase.auth.oauth
-      .getAuthorizationDetails(id)
-      .then(({ data, error: err }) => {
-        if (err) setError(err.message);
-        else setDetails(data as Details);
-      })
-      .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "Failed to load request"),
-      );
+
+    void (async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          // Come back here after Google sign-in, or the pending authorization
+          // request is lost.
+          await signInWithGoogle(`/oauth/consent?authorization_id=${id}`);
+          return;
+        }
+
+        const { data, error: err } =
+          await supabase.auth.oauth.getAuthorizationDetails(id);
+        if (err) {
+          setError(err.message);
+          return;
+        }
+        if (data && "authorization_id" in data) {
+          setDetails(data as Details);
+        } else if (data) {
+          // Already consented to these scopes — Supabase auto-approved.
+          window.location.href = data.redirect_url;
+        }
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load request");
+      }
+    })();
   }, []);
 
   const decide = useCallback(
@@ -451,16 +538,18 @@ export default function ConsentPage() {
       if (!authorizationId) return;
       setBusy(true);
       const supabase = createBrowserSupabase();
+      // skipBrowserRedirect defaults to false, which would redirect for us.
+      // Opt out so the redirect is explicit here rather than a library default.
+      const opts = { skipBrowserRedirect: true };
       const { data, error: err } = approve
-        ? await supabase.auth.oauth.approveAuthorization(authorizationId)
-        : await supabase.auth.oauth.denyAuthorization(authorizationId);
+        ? await supabase.auth.oauth.approveAuthorization(authorizationId, opts)
+        : await supabase.auth.oauth.denyAuthorization(authorizationId, opts);
       if (err) {
         setError(err.message);
         setBusy(false);
         return;
       }
-      const redirect = (data as { redirect_url?: string })?.redirect_url;
-      if (redirect) window.location.href = redirect;
+      if (data?.redirect_url) window.location.href = data.redirect_url;
       else setError("No redirect returned by Supabase.");
     },
     [authorizationId],
@@ -486,7 +575,7 @@ export default function ConsentPage() {
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">
-          Connect {details.client_name ?? "an application"}
+          Connect {details.client.name}
         </h1>
         <p className="mt-2 text-sm text-neutral-400">
           It will be able to read your portfolios and holdings. It cannot change
@@ -496,13 +585,17 @@ export default function ConsentPage() {
 
       <dl className="space-y-2 rounded-lg border border-neutral-800 p-4 font-mono text-xs">
         <div className="flex justify-between gap-4">
+          <dt className="text-neutral-500">Signed in as</dt>
+          <dd className="truncate text-neutral-300">{details.user.email}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
           <dt className="text-neutral-500">Redirects to</dt>
           <dd className="truncate text-neutral-300">{details.redirect_uri}</dd>
         </div>
         <div className="flex justify-between gap-4">
           <dt className="text-neutral-500">Scopes</dt>
           <dd className="text-neutral-300">
-            {(details.scopes ?? []).join(", ") || "—"}
+            {details.scope.split(" ").filter(Boolean).join(", ") || "—"}
           </dd>
         </div>
       </dl>
@@ -529,9 +622,6 @@ export default function ConsentPage() {
   );
 }
 ```
-
-If Step 1 showed different method or response-field names, use the names from the
-installed package rather than these.
 
 - [ ] **Step 3: Verify it builds**
 
