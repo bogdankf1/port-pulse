@@ -240,35 +240,63 @@ zero-priced holding would corrupt weights, totals, and any advice built on them.
 These are assumptions not yet verified against a running system. Each has a known
 fallback, so neither blocks the design.
 
-1. **Dot-prefixed App Router directories.** Whether `app/.well-known/…/route.ts`
-   resolves correctly in Next.js 16. Fallback: a rewrite in `next.config.ts` from
-   `/.well-known/:path*` to `/api/well-known/:path*`. Resolve by testing the route
-   before building on it.
+1. **Dot-prefixed App Router directories.** ✅ **RESOLVED YES** (2026-08-14,
+   Next.js 16.2.6 dev server). `app/.well-known/oauth-protected-resource/api/mcp/route.ts`
+   serves at its literal path and returns 200. **No `next.config.ts` rewrite is
+   needed** and none was added.
 
-2. **RLS with OAuth-server-issued tokens.** Whether a token minted by the Supabase
-   OAuth server resolves `auth.uid()` in PostgREST the way a normal session token
-   does. The advertised scopes are OIDC-only (`openid`, `profile`, `email`,
-   `phone`, `offline_access`) with nothing describing database access, which is
-   mild evidence against it. Fallback: a service-role client with an explicit
-   `.eq("user_id", userId)` on every query — equally safe, but moves enforcement
-   from the database into application code, so RLS is preferred if it works.
-   Resolve at step 3.
+   Original question: whether `app/.well-known/…/route.ts` resolves in Next.js 16.
+   Fallback would have been a rewrite from `/.well-known/:path*` to
+   `/api/well-known/:path*`.
 
-3. **Audience binding (RFC 8707).** The authorization server metadata advertises no
-   resource-indicator support, so Supabase will likely mint tokens whose `aud` is
-   the OAuth client rather than the MCP resource URL. If so, the strict `aud`
-   check cannot be satisfied and must be dropped.
+2. **RLS with OAuth-server-issued tokens.** ✅ **RESOLVED YES** (2026-08-14, probe
+   client against the live project). An OAuth-issued token resolves `auth.uid()`
+   in PostgREST exactly like a normal session token. `GET /rest/v1/portfolios`
+   with the token returned both of the owner's rows; the same request with only
+   the anon key returned `[]`. The OIDC-only scope list was not evidence against
+   it — the token carries `role: "authenticated"` and is structurally an ordinary
+   Supabase user JWT.
 
-   **Resolve at step 2**, by inspecting a real token from a manually registered
-   client. If `aud` reflects a `resource` parameter, implement the strict check. If
-   it does not, the verifier falls back to signature + issuer + expiry, and the
-   residual risk is: any token this project issued to any OAuth client, for this
-   user, is accepted at `/api/mcp`.
+   **Consequence:** tools use a user-scoped client carrying the caller's token,
+   and RLS stays the single enforcement point. The service-role fallback is not
+   needed and should not be built.
+
+   Original question: whether a token minted by the Supabase OAuth server
+   resolves `auth.uid()` in PostgREST the way a normal session token does. The
+   advertised scopes are OIDC-only (`openid`, `profile`, `email`, `phone`,
+   `offline_access`) with nothing describing database access, which was mild
+   evidence against it. Fallback would have been a service-role client with an
+   explicit `.eq("user_id", userId)` on every query.
+
+3. **Audience binding (RFC 8707).** ❌ **RESOLVED NO** (2026-08-14, same probe).
+   The authorization request carried
+   `resource=https://port-pulse-seven.vercel.app/api/mcp`. It was **silently
+   ignored** — no error, no echo. The minted token's `aud` is the constant
+   string **`"authenticated"`**.
+
+   This is *worse* than the predicted failure mode. The guess was `aud` = the
+   client ID, which is at least client-specific. `"authenticated"` is the same
+   value in every user token this project issues, so it carries no binding
+   information whatsoever.
+
+   **Consequence — the residual risk is wider than written below.** It is not
+   "any token issued to any OAuth client"; it is **any Supabase token this
+   project ever issues for this user, including an ordinary web-app session
+   token from a normal Google sign-in.** Those are not OAuth-client tokens at
+   all, and they are equally accepted at `/api/mcp`.
+
+   No substitute binding is available. The token does carry `client_id` and
+   `scope` claims, but `client_id` cannot be pinned — Claude registers its own
+   client dynamically (Task 17), so its value is not known ahead of time.
+
+   The verifier therefore checks signature + issuer + expiry only, and
+   `lib/mcp/auth.ts` must not grow a strict `aud` check.
 
    Why that residual risk is acceptable *for this design specifically*: every tool
    is read-only and returns exactly the rows RLS already grants that token, so a
    replayed token gains no authority it did not already have via PostgREST. The
-   boundary is RLS either way.
+   boundary is RLS either way — and Open Question 2 confirms RLS genuinely is the
+   boundary.
 
    Why it is nonetheless recorded as a real limitation: this reasoning collapses
    the moment a write tool is added. **Do not add write tools while Open Question 3
