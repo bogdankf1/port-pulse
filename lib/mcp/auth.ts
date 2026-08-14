@@ -2,8 +2,8 @@ import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { MCP_ISSUER, SUPABASE_JWKS_URL } from "./config";
 
 export class McpAuthError extends Error {
-  constructor(message: string) {
-    super(message);
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
     this.name = "McpAuthError";
   }
 }
@@ -21,8 +21,12 @@ export function createTokenVerifier(keySet: JWTVerifyGetKey, issuer: string) {
     try {
       ({ payload } = await jwtVerify(token, keySet, { issuer }));
     } catch (err) {
+      // jose's claim-validation messages name which check failed but never echo
+      // claim values or key material, so they are safe to surface. The cause is
+      // kept for server-side logs.
       throw new McpAuthError(
         err instanceof Error ? err.message : "token verification failed",
+        { cause: err },
       );
     }
 

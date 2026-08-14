@@ -87,7 +87,18 @@ describe("createTokenVerifier", () => {
     await expect(verify(token)).rejects.toBeInstanceOf(McpAuthError);
   });
 
-  it("rejects a token signed by an unknown key", async () => {
+  it("rejects a token whose sub claim is not a string", async () => {
+    const { privateKey, keySet } = await makeKeys();
+    const verify = createTokenVerifier(keySet, ISSUER);
+    const token = await sign(privateKey, { sub: 12345 });
+
+    await expect(verify(token)).rejects.toBeInstanceOf(McpAuthError);
+  });
+
+  // Both key pairs share kid "test-key", so this exercises the stronger case:
+  // the kid resolves to a real key and the signature fails against it, rather
+  // than short-circuiting on JWKSNoMatchingKey before verification runs.
+  it("rejects a token whose signature does not match the resolved key", async () => {
     const { keySet } = await makeKeys();
     const other = await makeKeys();
     const verify = createTokenVerifier(keySet, ISSUER);
