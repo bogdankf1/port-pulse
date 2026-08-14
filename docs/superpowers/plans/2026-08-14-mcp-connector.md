@@ -161,9 +161,14 @@ export const SUPABASE_JWKS_URL = `${MCP_ISSUER}/.well-known/jwks.json`;
 /**
  * Public origin of this app. Vercel sets VERCEL_PROJECT_PRODUCTION_URL without a
  * scheme; NEXT_PUBLIC_SITE_URL allows an explicit override for local work.
+ *
+ * Uses `||` rather than `??` deliberately: a declared-but-empty env var must fall
+ * through, not win. An empty NEXT_PUBLIC_SITE_URL under `??` yields an empty
+ * origin and a relative MCP_RESOURCE_URL, which is published to Claude in the
+ * metadata document and read as an absolute resource identifier.
  */
 export const PORTPULSE_ORIGIN = (
-  process.env.NEXT_PUBLIC_SITE_URL ??
+  process.env.NEXT_PUBLIC_SITE_URL ||
   (process.env.VERCEL_PROJECT_PRODUCTION_URL
     ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
     : "http://localhost:3000")
