@@ -7,7 +7,12 @@ import {
   toAuthInfo,
   verifyToken,
 } from "@/lib/mcp/auth";
-import { listPortfolios, listPortfoliosSchema } from "@/lib/mcp/tools";
+import {
+  getPortfolio,
+  getPortfolioSchema,
+  listPortfolios,
+  listPortfoliosSchema,
+} from "@/lib/mcp/tools";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -32,6 +37,20 @@ const handler = createMcpHandler(
       },
       async (_args, ctx) =>
         jsonResult(await listPortfolios(authContextFrom(ctx.http?.authInfo))),
+    );
+
+    server.registerTool(
+      "get_portfolio",
+      {
+        title: "Get portfolio",
+        description:
+          "Get one portfolio's holdings with current prices, unrealized P&L and " +
+          "weights. Identify it by portfolio_id, or by name if you already " +
+          "listed portfolios.",
+        inputSchema: getPortfolioSchema,
+      },
+      async (args, ctx) =>
+        jsonResult(await getPortfolio(authContextFrom(ctx.http?.authInfo), args)),
     );
   },
   { serverInfo: { name: "port-pulse", version: "1.0.0" } },
