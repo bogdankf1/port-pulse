@@ -36,6 +36,7 @@ import { AddTickerModal } from "./AddTickerModal";
 import { AddMenu } from "./AddMenu";
 import { InsightsDrawer } from "./InsightsDrawer";
 import { HoldingsList } from "./mobile/HoldingsList";
+import { PortfolioHero } from "./mobile/PortfolioHero";
 
 type ViewMode = "table" | "heatmap";
 const VIEW_STORAGE_KEY = "pp:view:v1";
@@ -170,11 +171,18 @@ export function WatchlistDashboard() {
             )}
           </>
         ) : (
-          <HoldingsList
-            tickers={tickers}
-            quotes={quotes}
-            onRemove={(symbol) => removeFromWatchlist(symbol)}
-          />
+          <>
+            <PortfolioHero
+              tickers={tickers}
+              quotes={quotes}
+              portfolioName={activePortfolioName ?? "Portfolio"}
+            />
+            <HoldingsList
+              tickers={tickers}
+              quotes={quotes}
+              onRemove={(symbol) => removeFromWatchlist(symbol)}
+            />
+          </>
         )
       ) : (
         <EmptyPortfolio
