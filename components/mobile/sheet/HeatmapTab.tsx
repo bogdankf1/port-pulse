@@ -14,7 +14,7 @@ export function HeatmapTab({ tickers }: Props) {
         </h3>
       </div>
       <div className="-mx-1">
-        <PortfolioHeatmap tickers={tickers} maxTiles={8} />
+        <PortfolioHeatmap tickers={tickers} maxTiles={6} />
       </div>
       <p className="mt-2 font-mono text-[10px] text-slate-400 dark:text-slate-600">
         Tap a tile to open that position.
