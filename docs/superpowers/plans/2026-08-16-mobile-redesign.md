@@ -3146,6 +3146,15 @@ callback, change the select handler to:
                 },
 ```
 
+- [ ] **Step 1b: Migrate the heatmap onto `useQuotes`**
+
+Surfaced by the Task 2 review: `components/PortfolioHeatmap.tsx:195-208` is `useQuotes`
+written out by hand — symbols memo, then `usePortfolioVersion` + `useDailyCloseVersion`,
+then a memo over `getPriceSync`/`getDailyCloseSync` with the same `exhaustive-deps`
+disable. Since this task already opens the file, replace that block with the shared hook
+and drop the now-unused imports. `buildTiles` keeps reading prices the same way — pass
+`quotes` into it rather than having it call the sync getters.
+
 - [ ] **Step 2: Write the heatmap tab**
 
 Create `components/mobile/sheet/HeatmapTab.tsx`:
@@ -3523,6 +3532,12 @@ unreachable on touch, add a detail line then.
 ## Follow-ups (not in this plan)
 
 - `/position/[symbol]` mobile pass — explicitly out of scope in the spec.
+- **`components/TickerTableRow.tsx:27-32` re-derives holdings maths inline** — market
+  value, cost basis, unrealized P&L and portfolio weight, duplicating `marketValue`,
+  `costBasis`, `unrealizedPl` and `weightPct` from `lib/holdings.ts`. Surfaced by the
+  Task 2 review. Deliberately not migrated: it is desktop-only code and "no desktop
+  changes" is a stated non-goal. Worth doing, because it is a live divergence risk
+  against the shared module — but as its own change, not smuggled into this plan.
 - Per-row sparklines (rejected as R2, but the expanded row already charts).
 - Swipe-to-remove, if Task 16 step 7 shows it is needed.
 - 5Y on the hero, if the range chips turn out to have room.
