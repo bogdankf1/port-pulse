@@ -94,7 +94,10 @@ export function RiskGauge({
         </div>
       )}
 
-      <div className="mt-2 flex justify-between font-mono text-[9px] text-slate-400 dark:text-slate-600">
+      {/* These read as the gauge's axis, not decoration — the muted
+          slate-400/600 placeholder token measured 2.6:1 light / 2.4:1 dark,
+          under WCAG AA. Use the same scale the holding row settled on. */}
+      <div className="mt-2 flex justify-between font-mono text-[9px] text-slate-500 dark:text-slate-400">
         {scaleLabels.map((l) => (
           <span key={l}>{l}</span>
         ))}
