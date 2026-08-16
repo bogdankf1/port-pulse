@@ -11,6 +11,7 @@ import {
   type ComparePoint,
 } from "@/lib/compare";
 import type { HistoryPoint } from "@/types";
+import { alignedTimes, computePortfolioValues } from "@/lib/portfolioSeries";
 
 export const runtime = "nodejs";
 
@@ -163,19 +164,7 @@ export async function GET(request: NextRequest) {
       points: historyBySymbol.get(h.symbol)!,
     }));
 
-    const latestStart = symbolHistories.reduce(
-      (acc, s) => Math.max(acc, s.points[0].time),
-      0,
-    );
-
-    // Build the union of timestamps at-or-after latestStart, then valuate.
-    const timeSet = new Set<number>();
-    for (const s of symbolHistories) {
-      for (const p of s.points) {
-        if (p.time >= latestStart) timeSet.add(p.time);
-      }
-    }
-    const times = Array.from(timeSet).sort((a, b) => a - b);
+    const times = alignedTimes(symbolHistories);
     if (times.length === 0) continue;
 
     // Pre-compute search arrays per symbol for snap-to-prior-price lookups.
@@ -249,39 +238,4 @@ export async function GET(request: NextRequest) {
     headers["X-Compare-Missing"] = missingSymbols.join(",");
   }
   return NextResponse.json(body, { headers });
-}
-
-type HoldingHistory = { holding: Holding; points: HistoryPoint[] };
-
-function computePortfolioValues(
-  times: number[],
-  symbolHistories: HoldingHistory[],
-): { time: number; value: number }[] {
-  // For each symbol, walk a pointer through its sorted points to find the
-  // most-recent price at-or-before each target time (snap-to-prior).
-  const pointers = new Map<string, number>();
-  for (const sh of symbolHistories) pointers.set(sh.holding.symbol, 0);
-
-  const out: { time: number; value: number }[] = [];
-  for (const t of times) {
-    let total = 0;
-    let allPriced = true;
-    for (const sh of symbolHistories) {
-      const sym = sh.holding.symbol;
-      const pts = sh.points;
-      let i = pointers.get(sym) ?? 0;
-      while (i + 1 < pts.length && pts[i + 1].time <= t) i++;
-      pointers.set(sym, i);
-      const price = pts[i]?.time <= t ? pts[i]?.value : undefined;
-      if (typeof price !== "number" || !Number.isFinite(price)) {
-        allPriced = false;
-        break;
-      }
-      total += sh.holding.quantity * price;
-    }
-    if (allPriced && Number.isFinite(total)) {
-      out.push({ time: t, value: total });
-    }
-  }
-  return out;
 }
