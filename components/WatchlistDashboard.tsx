@@ -12,7 +12,9 @@ import {
   getUserServerSnapshot,
   subscribeUser,
 } from "@/lib/auth";
-import { useFinnhubPrices } from "@/lib/finnhub";
+import { useFinnhubPrices, usePortfolioVersion } from "@/lib/finnhub";
+import { useSectorsVersion } from "@/lib/sectors";
+import { getTheme, getThemeServerSnapshot, subscribeTheme } from "@/lib/theme";
 import { useIsDesktop } from "@/hooks/useIsDesktop";
 import { useQuotes } from "@/hooks/useQuotes";
 import {
@@ -28,7 +30,7 @@ import { PortfolioTable } from "./PortfolioTable";
 import { PortfolioSelector } from "./PortfolioSelector";
 import { PortfolioGearMenu } from "./PortfolioGearMenu";
 import { PortfolioHeatmap } from "./PortfolioHeatmap";
-import { SectorBreakdown } from "./SectorBreakdown";
+import { SectorBreakdown, colorFor, computeSlices } from "./SectorBreakdown";
 import { RiskMetricsPanel } from "./RiskMetricsPanel";
 import { Uploader } from "./Uploader";
 import { UploaderModal } from "./UploaderModal";
@@ -38,6 +40,8 @@ import { InsightsDrawer } from "./InsightsDrawer";
 import { HoldingsList } from "./mobile/HoldingsList";
 import { PortfolioHero } from "./mobile/PortfolioHero";
 import { AnalyticsSheet } from "./mobile/AnalyticsSheet";
+import { MixTab } from "./mobile/sheet/MixTab";
+import type { Ticker } from "@/types";
 
 type ViewMode = "table" | "heatmap";
 const VIEW_STORAGE_KEY = "pp:view:v1";
@@ -183,18 +187,16 @@ export function WatchlistDashboard() {
               quotes={quotes}
               onRemove={(symbol) => removeFromWatchlist(symbol)}
             />
-            <AnalyticsSheet
-              peek={
-                <span className="font-mono text-[11px] text-slate-500">
-                  Analytics
-                </span>
+            <AnalyticsSheet peek={<SheetPeek tickers={tickers} />}>
+              {(tab) =>
+                tab === "mix" ? (
+                  <MixTab tickers={tickers} quotes={quotes} />
+                ) : (
+                  <div className="py-8 text-center font-mono text-xs text-slate-500">
+                    {tab} tab
+                  </div>
+                )
               }
-            >
-              {(tab) => (
-                <div className="py-8 text-center font-mono text-xs text-slate-500">
-                  {tab} tab
-                </div>
-              )}
             </AnalyticsSheet>
           </>
         )
@@ -348,5 +350,49 @@ function ScaleIcon() {
       <path d="M6 8l-3 7a4 4 0 0 0 6 0z" />
       <path d="M18 8l-3 7a4 4 0 0 0 6 0z" />
     </svg>
+  );
+}
+
+function SheetPeek({ tickers }: { tickers: Ticker[] }) {
+  const symbols = useMemo(() => tickers.map((t) => t.symbol), [tickers]);
+  const priceVersion = usePortfolioVersion(symbols);
+  const sectorsVersion = useSectorsVersion(symbols);
+  const theme = useSyncExternalStore(
+    subscribeTheme,
+    getTheme,
+    getThemeServerSnapshot,
+  );
+  const slices = useMemo(
+    () => computeSlices(tickers),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tickers, priceVersion, sectorsVersion],
+  );
+
+  const top = slices[0];
+
+  return (
+    <span className="flex items-center gap-3">
+      <span className="flex h-2.5 flex-1 overflow-hidden rounded">
+        {slices.length > 0 ? (
+          slices.map((s) => (
+            <span
+              key={s.sector}
+              style={{
+                width: `${s.percent * 100}%`,
+                backgroundColor: colorFor(s.sector, theme),
+              }}
+            />
+          ))
+        ) : (
+          <span className="w-full bg-slate-200 dark:bg-slate-700" />
+        )}
+      </span>
+      <span className="shrink-0 font-mono text-[10px] text-slate-500">
+        {top ? `${top.sector} ${(top.percent * 100).toFixed(0)}%` : "Analytics"}
+      </span>
+      <span aria-hidden className="shrink-0 text-slate-400">
+        ▲
+      </span>
+    </span>
   );
 }

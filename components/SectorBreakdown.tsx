@@ -49,12 +49,12 @@ const SECTOR_PALETTE_LIGHT: Record<string, string> = {
   Other: "#64748b",
 };
 
-function colorFor(sector: string, theme: Theme): string {
+export function colorFor(sector: string, theme: Theme): string {
   const palette = theme === "dark" ? SECTOR_PALETTE_DARK : SECTOR_PALETTE_LIGHT;
   return palette[sector] ?? palette.Other;
 }
 
-function computeSlices(tickers: Ticker[]): SectorSlice[] {
+export function computeSlices(tickers: Ticker[]): SectorSlice[] {
   const buckets = new Map<string, { value: number; symbols: string[] }>();
   let total = 0;
 
