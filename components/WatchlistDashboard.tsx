@@ -37,6 +37,7 @@ import { AddMenu } from "./AddMenu";
 import { InsightsDrawer } from "./InsightsDrawer";
 import { HoldingsList } from "./mobile/HoldingsList";
 import { PortfolioHero } from "./mobile/PortfolioHero";
+import { AnalyticsSheet } from "./mobile/AnalyticsSheet";
 
 type ViewMode = "table" | "heatmap";
 const VIEW_STORAGE_KEY = "pp:view:v1";
@@ -182,6 +183,19 @@ export function WatchlistDashboard() {
               quotes={quotes}
               onRemove={(symbol) => removeFromWatchlist(symbol)}
             />
+            <AnalyticsSheet
+              peek={
+                <span className="font-mono text-[11px] text-slate-500">
+                  Analytics
+                </span>
+              }
+            >
+              {(tab) => (
+                <div className="py-8 text-center font-mono text-xs text-slate-500">
+                  {tab} tab
+                </div>
+              )}
+            </AnalyticsSheet>
           </>
         )
       ) : (
