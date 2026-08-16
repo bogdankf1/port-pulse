@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { HoldingRow } from "./HoldingRow";
-import { SortChips } from "./SortChips";
+import { MOBILE_SORT_COLUMNS, SortChips } from "./SortChips";
 import { ConfirmModal } from "../ConfirmModal";
 import {
   computeTotals,
@@ -22,7 +22,13 @@ function readStoredSort(): SortState | null {
     const raw = sessionStorage.getItem(SORT_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SortState;
-    return parsed?.column && parsed?.direction ? parsed : null;
+    // A column the chips can't display would sort invisibly with no way to
+    // clear it — treat anything unrecognised as no stored preference.
+    if (!(MOBILE_SORT_COLUMNS as readonly string[]).includes(parsed?.column)) {
+      return null;
+    }
+    if (parsed?.direction !== "asc" && parsed?.direction !== "desc") return null;
+    return parsed;
   } catch {
     return null;
   }

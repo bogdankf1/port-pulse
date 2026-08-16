@@ -9,6 +9,12 @@ const MOBILE_COLUMNS: { column: SortColumn; label: string }[] = [
   { column: "ticker", label: "Ticker" },
 ];
 
+// Derived from MOBILE_COLUMNS so the two can't drift — used by HoldingsList
+// to reject a persisted sort for a column these chips don't offer.
+export const MOBILE_SORT_COLUMNS: readonly SortColumn[] = MOBILE_COLUMNS.map(
+  (c) => c.column,
+);
+
 type Props = {
   sort: SortState | null;
   onChange: (next: SortState) => void;
