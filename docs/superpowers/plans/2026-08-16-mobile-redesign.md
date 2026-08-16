@@ -3493,9 +3493,22 @@ colour without flashing.
 
 - [ ] **Step 6: Check degradation**
 
-Throttle to offline in DevTools, then reload. Expected: hero figures still
-render from cached prices where available, chart shows "History unavailable",
-Risk tab shows its error, the list still renders, nothing blanks out.
+Two distinct cases — the second one corrects an assumption this plan originally
+got wrong, found during Task 10.
+
+**Case A — the chart request fails while the page is live.** Block
+`/api/portfolio-history` (DevTools request blocking, or reject it in `fetch`).
+Expected: the hero's three figures stay intact, the chart area switches to
+"History unavailable" with no layout jump, and the list is unaffected. This is
+the case the design property is actually about, and it was verified in Task 10.
+
+**Case B — offline, then a hard reload.** The hero will show `—`, not cached
+figures. `lib/finnhub.ts` keeps prices in a module-level `Map` with no
+`localStorage`/IndexedDB persistence, and both the WebSocket and the REST
+snapshot fallback need the network — so a reload starts with no prices at all.
+That is a whole-app condition, not a hero defect: nothing on the dashboard can
+show a number it has never received. Confirm it degrades *cleanly* (no crash,
+no error spew, empty state rather than `NaN`), not that figures survive.
 
 - [ ] **Step 7: Report**
 
