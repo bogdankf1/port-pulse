@@ -13,6 +13,8 @@ import {
   subscribeUser,
 } from "@/lib/auth";
 import { useFinnhubPrices } from "@/lib/finnhub";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { useQuotes } from "@/hooks/useQuotes";
 import {
   getActiveIdServerSnapshot,
   getActivePortfolioId,
@@ -33,6 +35,7 @@ import { UploaderModal } from "./UploaderModal";
 import { AddTickerModal } from "./AddTickerModal";
 import { AddMenu } from "./AddMenu";
 import { InsightsDrawer } from "./InsightsDrawer";
+import { HoldingsList } from "./mobile/HoldingsList";
 
 type ViewMode = "table" | "heatmap";
 const VIEW_STORAGE_KEY = "pp:view:v1";
@@ -92,6 +95,8 @@ export function WatchlistDashboard() {
   const isLoggedIn = Boolean(user);
   const symbols = useMemo(() => tickers.map((t) => t.symbol), [tickers]);
   useFinnhubPrices(symbols);
+  const isDesktop = useIsDesktop();
+  const quotes = useQuotes(symbols);
 
   const overCap = tickers.length > SOFT_CAP;
   const showSelector = isLoggedIn && portfolios.length > 0;
@@ -113,7 +118,7 @@ export function WatchlistDashboard() {
         <div className="flex items-center gap-2">
           {tickers.length > 0 && (
             <>
-              <ViewToggle view={view} onChange={setView} />
+              {isDesktop && <ViewToggle view={view} onChange={setView} />}
               <AddMenu
                 onAddTicker={() => setAddOpen(true)}
                 onAddScreenshot={() => setUploaderOpen(true)}
@@ -151,18 +156,26 @@ export function WatchlistDashboard() {
       )}
 
       {tickers.length > 0 ? (
-        <>
-          <SectorBreakdown tickers={tickers} />
-          <RiskMetricsPanel tickers={tickers} />
-          {view === "table" ? (
-            <PortfolioTable
-              tickers={tickers}
-              onRemove={(symbol) => removeFromWatchlist(symbol)}
-            />
-          ) : (
-            <PortfolioHeatmap tickers={tickers} />
-          )}
-        </>
+        isDesktop ? (
+          <>
+            <SectorBreakdown tickers={tickers} />
+            <RiskMetricsPanel tickers={tickers} />
+            {view === "table" ? (
+              <PortfolioTable
+                tickers={tickers}
+                onRemove={(symbol) => removeFromWatchlist(symbol)}
+              />
+            ) : (
+              <PortfolioHeatmap tickers={tickers} />
+            )}
+          </>
+        ) : (
+          <HoldingsList
+            tickers={tickers}
+            quotes={quotes}
+            onRemove={(symbol) => removeFromWatchlist(symbol)}
+          />
+        )
       ) : (
         <EmptyPortfolio
           ready={portfolioReady}
