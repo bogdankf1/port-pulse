@@ -11,7 +11,7 @@ import {
   type SortState,
 } from "@/lib/holdings";
 import { getProfileNameSync } from "@/lib/profile";
-import { formatMoney, plColor } from "@/lib/format";
+import { formatMoney, plColor, signed } from "@/lib/format";
 import type { Ticker } from "@/types";
 
 const SORT_STORAGE_KEY = "pp:mobile-sort:v1";
@@ -69,7 +69,6 @@ export function HoldingsList({ tickers, quotes, onRemove }: Props) {
     [tickers, sort, quotes, totals.marketValue],
   );
 
-  const plPositive = totals.pl != null && totals.pl >= 0;
   const plPct =
     totals.pl != null && totals.costBasis > 0
       ? (totals.pl / totals.costBasis) * 100
@@ -101,11 +100,10 @@ export function HoldingsList({ tickers, quotes, onRemove }: Props) {
           </span>
           {totals.pl != null && (
             <span className={`font-mono text-[11px] tabular-nums ${plColor(totals.pl)}`}>
-              {plPositive ? "+" : "−"}${formatMoney(Math.abs(totals.pl))}
+              {signed(totals.pl, (v) => `$${formatMoney(v)}`)}
               {plPct != null && (
                 <span className="ml-1 opacity-80">
-                  {plPositive ? "+" : "−"}
-                  {Math.abs(plPct).toFixed(2)}%
+                  {signed(plPct, (v) => `${v.toFixed(2)}%`)}
                 </span>
               )}
             </span>

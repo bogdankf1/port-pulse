@@ -6,7 +6,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { useQuotes } from "@/hooks/useQuotes";
 import {
   computeTotals,
-  defaultDir,
+  nextSort,
   sortTickers,
   type SortColumn,
   type SortState,
@@ -39,12 +39,7 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
   );
 
   function toggle(col: SortColumn) {
-    setSort((prev) => {
-      if (prev?.column === col) {
-        return { column: col, direction: prev.direction === "asc" ? "desc" : "asc" };
-      }
-      return { column: col, direction: defaultDir(col) };
-    });
+    setSort((prev) => nextSort(prev, col));
   }
 
   const totalPlPositive = totals.pl != null && totals.pl >= 0;

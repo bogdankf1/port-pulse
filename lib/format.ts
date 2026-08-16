@@ -24,3 +24,7 @@ export function plColor(n: number): string {
     ? "text-emerald-600 dark:text-emerald-400"
     : "text-red-600 dark:text-red-400";
 }
+
+export function signed(n: number, format: (v: number) => string): string {
+  return `${n >= 0 ? "+" : "−"}${format(Math.abs(n))}`;
+}

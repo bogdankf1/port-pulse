@@ -37,6 +37,17 @@ export function defaultDir(col: SortColumn): SortDir {
   return NUMERIC.has(col) ? "desc" : "asc";
 }
 
+/** Next sort state when `column` is activated: same column flips direction, a new column starts at its default. */
+export function nextSort(
+  prev: SortState | null,
+  column: SortColumn,
+): SortState {
+  if (prev?.column === column) {
+    return { column, direction: prev.direction === "asc" ? "desc" : "asc" };
+  }
+  return { column, direction: defaultDir(column) };
+}
+
 export type SortContext = {
   quotes: Quotes;
   totalValue: number;

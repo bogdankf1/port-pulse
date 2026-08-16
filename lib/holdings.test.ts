@@ -5,6 +5,7 @@ import {
   dayChangePct,
   defaultDir,
   marketValue,
+  nextSort,
   sortTickers,
   sortValue,
   unrealizedPl,
@@ -184,5 +185,27 @@ describe("defaultDir", () => {
     expect(defaultDir("day")).toBe("desc");
     expect(defaultDir("ticker")).toBe("asc");
     expect(defaultDir("name")).toBe("asc");
+  });
+});
+
+describe("nextSort", () => {
+  it("starts a new column at its default direction", () => {
+    expect(nextSort(null, "value")).toEqual({ column: "value", direction: "desc" });
+    expect(nextSort(null, "ticker")).toEqual({ column: "ticker", direction: "asc" });
+    expect(nextSort({ column: "day", direction: "asc" }, "value")).toEqual({
+      column: "value",
+      direction: "desc",
+    });
+  });
+
+  it("flips direction when the same column is activated again", () => {
+    expect(nextSort({ column: "value", direction: "desc" }, "value")).toEqual({
+      column: "value",
+      direction: "asc",
+    });
+    expect(nextSort({ column: "value", direction: "asc" }, "value")).toEqual({
+      column: "value",
+      direction: "desc",
+    });
   });
 });

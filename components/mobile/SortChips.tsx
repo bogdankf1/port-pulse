@@ -1,6 +1,6 @@
 "use client";
 
-import { defaultDir, type SortColumn, type SortState } from "@/lib/holdings";
+import { nextSort, type SortColumn, type SortState } from "@/lib/holdings";
 
 const MOBILE_COLUMNS: { column: SortColumn; label: string }[] = [
   { column: "value", label: "Value" },
@@ -34,16 +34,12 @@ export function SortChips({ sort, onChange }: Props) {
             key={column}
             type="button"
             aria-pressed={active}
-            onClick={() =>
-              onChange(
-                active
-                  ? {
-                      column,
-                      direction: sort.direction === "asc" ? "desc" : "asc",
-                    }
-                  : { column, direction: defaultDir(column) },
-              )
+            aria-label={
+              active
+                ? `Sort by ${label}, ${sort.direction === "asc" ? "ascending" : "descending"}`
+                : `Sort by ${label}`
             }
+            onClick={() => onChange(nextSort(sort, column))}
             className={`inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-md border px-3 font-mono text-[11px] font-medium uppercase tracking-wider transition-colors ${
               active
                 ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
