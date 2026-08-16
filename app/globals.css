@@ -110,12 +110,41 @@ body {
   }
 }
 
-/* With 25 symbols streaming, a full-list flash is a strobe. */
+/* With 25 symbols streaming, the glow-and-border pulse is a strobe. Reduce it
+   to a flat colour fade rather than removing it — these classes exist only as
+   animations, so `animation: none` would leave reduced-motion users with no
+   price-change signal at all. */
 @media (prefers-reduced-motion: reduce) {
-  .flash-up,
-  .flash-down,
-  .flash-up-row,
-  .flash-down-row {
-    animation: none;
+  @keyframes flashUp {
+    0% {
+      background-color: rgba(16, 185, 129, 0.12);
+    }
+    100% {
+      background-color: var(--flash-end-bg);
+    }
+  }
+  @keyframes flashDown {
+    0% {
+      background-color: rgba(239, 68, 68, 0.12);
+    }
+    100% {
+      background-color: var(--flash-end-bg);
+    }
+  }
+  @keyframes flashUpRow {
+    0% {
+      background-color: rgba(16, 185, 129, 0.12);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
+  @keyframes flashDownRow {
+    0% {
+      background-color: rgba(239, 68, 68, 0.12);
+    }
+    100% {
+      background-color: transparent;
+    }
   }
 }
