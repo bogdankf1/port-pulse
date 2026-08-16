@@ -67,6 +67,32 @@ describe("computePortfolioValues", () => {
       { time: 20, value: 205 },
     ]);
   });
+
+  it("drops an empty-points holding instead of losing the whole series", () => {
+    const a = history("A", 1, [[10, 100], [20, 200]]);
+    expect(computePortfolioValues([10, 20], [a, history("E", 5, [])])).toEqual([
+      { time: 10, value: 100 },
+      { time: 20, value: 200 },
+    ]);
+  });
+
+  it("gives each history its own cursor, even when symbols repeat", () => {
+    // Same symbol, different-length arrays. With symbol-keyed pointers the
+    // longer history walked the shared cursor off the end of the shorter one.
+    const long = history("A", 1, [[10, 100], [20, 200], [30, 300]]);
+    const short = history("A", 1, [[10, 5]]);
+    expect(computePortfolioValues([10, 20, 30], [long, short])).toEqual([
+      { time: 10, value: 105 },
+      { time: 20, value: 205 },
+      { time: 30, value: 305 },
+    ]);
+  });
+
+  it("drops a time where the total is not finite", () => {
+    expect(
+      computePortfolioValues([10], [history("A", Infinity, [[10, 5]])]),
+    ).toEqual([]);
+  });
 });
 
 describe("buildPortfolioSeries", () => {

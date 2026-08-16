@@ -7,8 +7,8 @@ export type HoldingHistory = {
    * Must be ascending by `time`. Both `alignedTimes` (which reads `points[0]`
    * as the earliest) and `computePortfolioValues` (whose pointer walk only
    * moves forward) depend on this. Unsorted input produces a silently wrong
-   * series, not an error. `fetchYahooChart` already returns ascending points,
-   * which is why neither function sorts defensively.
+   * series, not an error. Yahoo returns chart points ascending, which is why
+   * neither function sorts defensively.
    */
   points: HistoryPoint[];
 };
@@ -50,25 +50,27 @@ export function computePortfolioValues(
   const usable = histories.filter((h) => h.points.length > 0);
   if (usable.length === 0) return [];
 
-  const pointers = new Map<string, number>();
-  for (const h of usable) pointers.set(h.holding.symbol, 0);
+  // Keyed by position, not symbol: each HoldingHistory entry gets its own
+  // cursor. `i` starts at 0 and only advances while `i + 1 < points.length`,
+  // so it stays in range by construction — no entry can walk another's
+  // cursor past its own array's end.
+  const pointers: number[] = new Array(usable.length).fill(0);
 
   const out: SeriesPoint[] = [];
   for (const t of times) {
     let total = 0;
     let allPriced = true;
-    for (const h of usable) {
-      const symbol = h.holding.symbol;
-      const points = h.points;
-      let i = pointers.get(symbol) ?? 0;
+    for (let h = 0; h < usable.length; h++) {
+      const points = usable[h].points;
+      let i = pointers[h];
       while (i + 1 < points.length && points[i + 1].time <= t) i++;
-      pointers.set(symbol, i);
+      pointers[h] = i;
       const price = points[i].time <= t ? points[i].value : undefined;
       if (typeof price !== "number" || !Number.isFinite(price)) {
         allPriced = false;
         break;
       }
-      total += h.holding.quantity * price;
+      total += usable[h].holding.quantity * price;
     }
     if (allPriced && Number.isFinite(total)) {
       out.push({ time: t, value: total });
@@ -81,6 +83,5 @@ export function buildPortfolioSeries(
   histories: HoldingHistory[],
 ): SeriesPoint[] {
   const times = alignedTimes(histories);
-  if (times.length === 0) return [];
   return computePortfolioValues(times, histories);
 }
