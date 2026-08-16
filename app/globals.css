@@ -101,3 +101,21 @@ body {
 .flash-down-row {
   animation: flashDownRow 600ms ease-out;
 }
+
+/* iOS Safari repaints a fixed background on every scroll frame. The gradient is
+   decoration; below the desktop breakpoint it is not worth the jank. */
+@media (max-width: 1023px) {
+  body {
+    background-attachment: scroll;
+  }
+}
+
+/* With 25 symbols streaming, a full-list flash is a strobe. */
+@media (prefers-reduced-motion: reduce) {
+  .flash-up,
+  .flash-down,
+  .flash-up-row,
+  .flash-down-row {
+    animation: none;
+  }
+}

@@ -149,7 +149,7 @@ export function WatchlistDashboard() {
                   href="/compare"
                   aria-label="Compare portfolios"
                   title="Compare portfolios"
-                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
+                  className={`inline-flex items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 ${isDesktop ? "h-[30px] w-[30px]" : "min-h-[44px] min-w-[44px]"}`}
                 >
                   <ScaleIcon />
                 </Link>
@@ -160,12 +160,7 @@ export function WatchlistDashboard() {
         </div>
       </header>
 
-      {overCap && (
-        <div className="mx-4 mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:border-amber-500/30 dark:text-amber-200 sm:mx-0">
-          Finnhub free tier supports about {SOFT_CAP} live symbols per
-          connection. Some prices may not stream until you remove some.
-        </div>
-      )}
+      {isDesktop && overCap && <CapBanner />}
 
       {tickers.length > 0 ? (
         isDesktop ? (
@@ -188,6 +183,7 @@ export function WatchlistDashboard() {
               quotes={quotes}
               portfolioName={activePortfolioName ?? "Portfolio"}
             />
+            {overCap && <CapBanner />}
             <HoldingsList
               tickers={tickers}
               quotes={quotes}
@@ -236,6 +232,15 @@ export function WatchlistDashboard() {
         portfolioId={activeId ?? null}
       />
     </main>
+  );
+}
+
+function CapBanner() {
+  return (
+    <div className="mx-4 mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:border-amber-500/30 dark:text-amber-200 sm:mx-0">
+      Finnhub free tier supports about {SOFT_CAP} live symbols per
+      connection. Some prices may not stream until you remove some.
+    </div>
   );
 }
 
