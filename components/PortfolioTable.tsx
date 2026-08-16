@@ -26,8 +26,6 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
 
-  const requestRemove = (symbol: string) => setPendingRemoval(symbol);
-
   const totals = useMemo(() => computeTotals(tickers, quotes), [tickers, quotes]);
 
   const sortedTickers = useMemo(
@@ -43,10 +41,7 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
   function toggle(col: SortColumn) {
     setSort((prev) => {
       if (prev?.column === col) {
-        return {
-          column: col,
-          direction: prev.direction === "asc" ? "desc" : "asc",
-        };
+        return { column: col, direction: prev.direction === "asc" ? "desc" : "asc" };
       }
       return { column: col, direction: defaultDir(col) };
     });
@@ -57,11 +52,12 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
     totals.pl != null && totals.costBasis > 0
       ? (totals.pl / totals.costBasis) * 100
       : null;
-  const totalPlColor = totals.pl == null ? "text-slate-500" : plColor(totals.pl);
+  const totalPlColor =
+    totals.pl == null ? "text-slate-500" : plColor(totals.pl);
 
   return (
     <>
-      {/* Desktop / tablet: table (≥ sm) */}
+      {/* Desktop: table (≥ lg) */}
       <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white/60 dark:border-slate-800/70 dark:bg-slate-900/40 lg:block">
       <table className="min-w-full">
         <thead>
@@ -100,7 +96,7 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
               key={t.symbol}
               ticker={t}
               totalValue={totals.marketValue}
-              onRemove={() => requestRemove(t.symbol)}
+              onRemove={() => setPendingRemoval(t.symbol)}
             />
           ))}
         </tbody>

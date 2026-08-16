@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { getPriceSync, usePortfolioVersion } from "@/lib/finnhub";
 import { getDailyCloseSync, useDailyCloseVersion } from "@/lib/dailyClose";
-import type { Quotes } from "@/lib/holdings";
+import type { Quote, Quotes } from "@/lib/holdings";
 
 /**
  * Live price + previous close for each symbol, as one map.
@@ -14,10 +14,10 @@ import type { Quotes } from "@/lib/holdings";
 export function useQuotes(symbols: string[]): Quotes {
   const priceVersion = usePortfolioVersion(symbols);
   const closeVersion = useDailyCloseVersion(symbols);
-  const key = symbols.join("|");
+  const key = symbols.slice().sort().join("|");
 
   return useMemo(() => {
-    const map = new Map<string, { price: number | null; prevClose: number | null }>();
+    const map = new Map<string, Quote>();
     for (const symbol of symbols) {
       map.set(symbol, {
         price: getPriceSync(symbol) ?? null,
