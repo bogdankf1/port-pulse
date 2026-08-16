@@ -41,6 +41,7 @@ import { HoldingsList } from "./mobile/HoldingsList";
 import { PortfolioHero } from "./mobile/PortfolioHero";
 import { AnalyticsSheet } from "./mobile/AnalyticsSheet";
 import { MixTab } from "./mobile/sheet/MixTab";
+import { RiskTab } from "./mobile/sheet/RiskTab";
 import type { Ticker } from "@/types";
 
 type ViewMode = "table" | "heatmap";
@@ -191,6 +192,8 @@ export function WatchlistDashboard() {
               {(tab) =>
                 tab === "mix" ? (
                   <MixTab tickers={tickers} quotes={quotes} />
+                ) : tab === "risk" ? (
+                  <RiskTab tickers={tickers} />
                 ) : (
                   <div className="py-8 text-center font-mono text-xs text-slate-500">
                     {tab} tab
