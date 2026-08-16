@@ -33,15 +33,8 @@ export async function POST(request: Request) {
     );
   }
 
-  try {
-    const result = await buildPortfolioHistory(holdings, body.range);
-    return NextResponse.json(result, {
-      headers: { "Cache-Control": "private, max-age=0, no-store" },
-    });
-  } catch {
-    return NextResponse.json(
-      { error: "Failed to build portfolio history" },
-      { status: 502 },
-    );
-  }
+  const result = await buildPortfolioHistory(holdings, body.range);
+  return NextResponse.json(result, {
+    headers: { "Cache-Control": "private, max-age=0, no-store" },
+  });
 }
