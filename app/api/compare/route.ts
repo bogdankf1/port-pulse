@@ -167,7 +167,6 @@ export async function GET(request: NextRequest) {
     const times = alignedTimes(symbolHistories);
     if (times.length === 0) continue;
 
-    // Pre-compute search arrays per symbol for snap-to-prior-price lookups.
     const seriesValues = computePortfolioValues(times, symbolHistories);
     if (seriesValues.length === 0) continue;
     const startValue = seriesValues[0].value;
