@@ -4,21 +4,21 @@ import {
   type HoldingHistory,
   type SeriesHolding,
 } from "@/lib/portfolioSeries";
+// The single declaration of this union lives in types/index.ts — do not
+// redeclare it here, or the endpoint and the response type can drift apart.
 import type {
   HistoryPoint,
   PortfolioHistoryRange,
   PortfolioHistoryResponse,
 } from "@/types";
 
-// The single declaration of this union lives in types/index.ts — do not
-// redeclare it here, or the endpoint and the response type can drift apart.
 export const PORTFOLIO_HISTORY_RANGES: readonly PortfolioHistoryRange[] = [
   "1D",
   "1M",
   "3M",
   "YTD",
   "1Y",
-] as const;
+];
 
 /**
  * The series values today's holdings backwards through time. It is not a
@@ -68,7 +68,7 @@ export async function buildPortfolioHistory(
     uniqueSymbols.map(async (symbol) => {
       try {
         const res = await fetchYahooChart(symbol, range);
-        return [symbol, res.points as HistoryPoint[]] as const;
+        return [symbol, res.points] as const;
       } catch {
         return [symbol, null] as const;
       }

@@ -36,6 +36,10 @@ describe("sanitizeHoldings", () => {
     expect(sanitizeHoldings([{ symbol: "aapl", quantity: 3 }])).toEqual([
       { symbol: "AAPL", quantity: 3 },
     ]);
+    // Padding must be trimmed, not silently dropped — " AAPL " fails SYMBOL_RE.
+    expect(sanitizeHoldings([{ symbol: " aapl ", quantity: 3 }])).toEqual([
+      { symbol: "AAPL", quantity: 3 },
+    ]);
   });
 
   it("drops bad symbols, bad quantities and non-objects", () => {
@@ -93,6 +97,7 @@ describe("buildPortfolioHistory", () => {
     expect(result.endValue).toBe(280);
     expect(result.missing_symbols).toEqual([]);
     expect(result.caveat).toContain("current holdings");
+    expect(result.caveat).toContain("buys and sells");
   });
 
   it("reports symbols whose history could not be fetched and excludes them", async () => {
@@ -134,7 +139,7 @@ describe("buildPortfolioHistory", () => {
     fetchYahooChart.mockResolvedValue({
       points: [{ time: 10, value: 100 }],
     });
-    await buildPortfolioHistory(
+    const result = await buildPortfolioHistory(
       [
         { symbol: "AAPL", quantity: 1 },
         { symbol: "AAPL", quantity: 2 },
@@ -142,5 +147,6 @@ describe("buildPortfolioHistory", () => {
       "1M",
     );
     expect(fetchYahooChart).toHaveBeenCalledTimes(1);
+    expect(result.points).toEqual([{ time: 10, value: 300 }]);
   });
 });
