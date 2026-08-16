@@ -4,11 +4,8 @@ import { useMemo, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { ResponsiveContainer, Tooltip, Treemap } from "recharts";
 import type { Ticker } from "@/types";
-import { getPriceSync, usePortfolioVersion } from "@/lib/finnhub";
-import {
-  getDailyCloseSync,
-  useDailyCloseVersion,
-} from "@/lib/dailyClose";
+import { useQuotes } from "@/hooks/useQuotes";
+import { quoteFor, type Quotes } from "@/lib/holdings";
 import {
   getTheme,
   getThemeServerSnapshot,
@@ -19,6 +16,8 @@ import { formatCompactMoney } from "@/lib/format";
 
 type Props = {
   tickers: Ticker[];
+  /** Beyond this, the smallest holdings collapse into one "+N smaller" tile. */
+  maxTiles?: number;
 };
 
 type HeatTile = {
@@ -74,17 +73,16 @@ function colorForPct(pct: number | null, theme: Theme): string {
   return pct > 0 ? pos[idx] : neg[idx];
 }
 
-function buildTiles(tickers: Ticker[]): HeatTile[] {
+function buildTiles(tickers: Ticker[], quotes: Quotes): HeatTile[] {
   const tiles: HeatTile[] = [];
   let total = 0;
 
   for (const t of tickers) {
-    const price = getPriceSync(t.symbol);
+    const { price, prevClose } = quoteFor(quotes, t.symbol);
     if (price == null || t.quantity == null) continue;
     const value = price * t.quantity;
     if (value <= 0) continue;
     total += value;
-    const prevClose = getDailyCloseSync(t.symbol);
     const dailyPct =
       prevClose != null && prevClose > 0
         ? ((price - prevClose) / prevClose) * 100
@@ -107,6 +105,30 @@ function buildTiles(tickers: Ticker[]): HeatTile[] {
 
   tiles.sort((a, b) => b.size - a.size);
   return tiles;
+}
+
+/**
+ * Collapse the tail into a single tile. Below ~56px wide a tile renders with no
+ * label at all, so on a phone the smallest holdings are indistinguishable
+ * rectangles. One labelled aggregate beats six blank ones.
+ */
+function foldSmallTiles(tiles: HeatTile[], maxTiles: number): HeatTile[] {
+  if (tiles.length <= maxTiles) return tiles;
+  const kept = tiles.slice(0, maxTiles - 1);
+  const rest = tiles.slice(maxTiles - 1);
+  const size = rest.reduce((acc, t) => acc + t.size, 0);
+  const percent = rest.reduce((acc, t) => acc + t.percent, 0);
+  return [
+    ...kept,
+    {
+      symbol: `+${rest.length} smaller`,
+      name: rest.map((t) => t.symbol).join(", "),
+      size,
+      percent,
+      price: 0,
+      dailyPct: null,
+    },
+  ];
 }
 
 type TreemapContentProps = {
@@ -190,22 +212,20 @@ function renderTile(
   );
 }
 
-export function PortfolioHeatmap({ tickers }: Props) {
+export function PortfolioHeatmap({ tickers, maxTiles }: Props) {
   const router = useRouter();
   const symbols = useMemo(() => tickers.map((t) => t.symbol), [tickers]);
-  const priceVersion = usePortfolioVersion(symbols);
-  const closeVersion = useDailyCloseVersion(symbols);
+  const quotes = useQuotes(symbols);
   const theme = useSyncExternalStore(
     subscribeTheme,
     getTheme,
     getThemeServerSnapshot,
   );
 
-  const tiles = useMemo(
-    () => buildTiles(tickers),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickers, priceVersion, closeVersion],
-  );
+  const tiles = useMemo(() => {
+    const built = buildTiles(tickers, quotes);
+    return maxTiles ? foldSmallTiles(built, maxTiles) : built;
+  }, [tickers, quotes, maxTiles]);
 
   if (tiles.length === 0) {
     return (
@@ -234,7 +254,10 @@ export function PortfolioHeatmap({ tickers }: Props) {
               renderTile(
                 props as unknown as TreemapContentProps,
                 theme,
-                (s) => router.push(`/position/${encodeURIComponent(s)}`),
+                (s) => {
+                  if (s.startsWith("+")) return;
+                  router.push(`/position/${encodeURIComponent(s)}`);
+                },
               )
             }
           >

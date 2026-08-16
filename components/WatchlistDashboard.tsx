@@ -42,6 +42,8 @@ import { PortfolioHero } from "./mobile/PortfolioHero";
 import { AnalyticsSheet } from "./mobile/AnalyticsSheet";
 import { MixTab } from "./mobile/sheet/MixTab";
 import { RiskTab } from "./mobile/sheet/RiskTab";
+import { HeatmapTab } from "./mobile/sheet/HeatmapTab";
+import { InsightsTab } from "./mobile/sheet/InsightsTab";
 import type { Ticker } from "@/types";
 
 type ViewMode = "table" | "heatmap";
@@ -130,15 +132,18 @@ export function WatchlistDashboard() {
                 onAddTicker={() => setAddOpen(true)}
                 onAddScreenshot={() => setUploaderOpen(true)}
               />
-              <button
-                onClick={() => setInsightsOpen(true)}
-                aria-label="AI insights"
-                title="AI insights"
-                className="inline-flex h-[30px] items-center justify-center gap-1.5 rounded-md border border-slate-300 px-2 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 sm:px-2.5"
-              >
-                <SparkIcon />
-                <span className="hidden sm:inline">Insights</span>
-              </button>
+              {/* Below lg the AI sheet tab replaces this. */}
+              {isDesktop && (
+                <button
+                  onClick={() => setInsightsOpen(true)}
+                  aria-label="AI insights"
+                  title="AI insights"
+                  className="inline-flex h-[30px] items-center justify-center gap-1.5 rounded-md border border-slate-300 px-2 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 sm:px-2.5"
+                >
+                  <SparkIcon />
+                  <span className="hidden sm:inline">Insights</span>
+                </button>
+              )}
               {isLoggedIn && (
                 <Link
                   href="/compare"
@@ -194,10 +199,14 @@ export function WatchlistDashboard() {
                   <MixTab tickers={tickers} quotes={quotes} />
                 ) : tab === "risk" ? (
                   <RiskTab tickers={tickers} />
+                ) : tab === "heatmap" ? (
+                  <HeatmapTab tickers={tickers} />
                 ) : (
-                  <div className="py-8 text-center font-mono text-xs text-slate-500">
-                    {tab} tab
-                  </div>
+                  <InsightsTab
+                    tickers={tickers}
+                    portfolioName={activePortfolioName ?? "Portfolio"}
+                    portfolioId={activeId ?? null}
+                  />
                 )
               }
             </AnalyticsSheet>
