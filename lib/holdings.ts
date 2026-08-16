@@ -88,15 +88,25 @@ export function weightPct(
 }
 
 export type Totals = {
+  /** Every priced holding. */
   marketValue: number;
+  /** Only holdings that have BOTH a live price and an entry price. */
   costBasis: number;
+  /** Over the same subset as `costBasis` — this is NOT `marketValue - costBasis`. */
   pl: number | null;
   dayChange: number | null;
   dayChangePct: number | null;
   hasAnyValue: boolean;
 };
 
-export function computeTotals(tickers: Ticker[], quotes: Quotes): Totals {
+/** The holding's market value at the previous close — the denominator for day-change %. */
+function prevCloseValue(t: Ticker, quotes: Quotes): number | null {
+  const { prevClose } = quoteFor(quotes, t.symbol);
+  if (prevClose == null || prevClose <= 0 || t.quantity == null) return null;
+  return prevClose * t.quantity;
+}
+
+export function computeTotals(tickers: readonly Ticker[], quotes: Quotes): Totals {
   let totalValue = 0;
   let basis = 0;
   // Market value of only those holdings that also have a cost basis, so that
@@ -122,13 +132,11 @@ export function computeTotals(tickers: Ticker[], quotes: Quotes): Totals {
       hasAnyBasis = true;
     }
     const d = dayChange(t, quotes);
-    if (d != null && t.quantity != null) {
-      const { prevClose } = quoteFor(quotes, t.symbol);
-      if (prevClose != null) {
-        day += d;
-        dayBase += prevClose * t.quantity;
-        hasAnyDay = true;
-      }
+    const base = prevCloseValue(t, quotes);
+    if (d != null && base != null) {
+      day += d;
+      dayBase += base;
+      hasAnyDay = true;
     }
   }
 
@@ -172,10 +180,10 @@ export function sortValue(
 }
 
 export function sortTickers(
-  tickers: Ticker[],
+  tickers: readonly Ticker[],
   sort: SortState | null,
   ctx: SortContext,
-): Ticker[] {
+): readonly Ticker[] {
   if (!sort) return tickers;
   const dir = sort.direction === "asc" ? 1 : -1;
   return [...tickers].sort((a, b) => {

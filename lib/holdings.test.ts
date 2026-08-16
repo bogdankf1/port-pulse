@@ -6,6 +6,7 @@ import {
   defaultDir,
   marketValue,
   sortTickers,
+  sortValue,
   unrealizedPl,
   weightPct,
   type Quotes,
@@ -110,8 +111,11 @@ describe("sortTickers", () => {
 
   it("does not mutate the input array", () => {
     const input = [...all];
-    sortTickers(input, { column: "ticker", direction: "asc" }, ctx);
-    expect(input).toEqual(all);
+    const out = sortTickers(input, { column: "current", direction: "desc" }, ctx);
+    // current desc genuinely reorders: MSFT 190 > AAPL 150 > NVDA 50
+    expect(out.map((t) => t.symbol)).toEqual(["MSFT", "AAPL", "NVDA"]);
+    expect(input.map((t) => t.symbol)).toEqual(["AAPL", "MSFT", "NVDA"]);
+    expect(out).not.toBe(input);
   });
 
   it("sorts by ticker alphabetically", () => {
@@ -144,6 +148,32 @@ describe("sortTickers", () => {
       nameFor: (s) => (s === "ZZZ" ? "Aardvark Corp" : undefined),
     });
     expect(out.map((t) => t.symbol)).toEqual(["ZZZ", "AAPL"]);
+  });
+});
+
+describe("sortValue", () => {
+  const q = quotes({ AAPL: [150, 140], MSFT: [190, 200], NVDA: [50, 50] });
+  const ctx = { quotes: q, totalValue: 3000 };
+
+  it("projects every column", () => {
+    expect(sortValue(AAPL, "ticker", ctx)).toBe("AAPL");
+    expect(sortValue(AAPL, "name", ctx)).toBe("Apple Inc.");
+    expect(sortValue(AAPL, "qty", ctx)).toBe(10);
+    expect(sortValue(AAPL, "entry", ctx)).toBe(100);
+    expect(sortValue(AAPL, "current", ctx)).toBe(150);
+    expect(sortValue(AAPL, "value", ctx)).toBe(1500);
+    // 1500 / 3000 — the only assertion that pins ctx.totalValue being wired through
+    expect(sortValue(AAPL, "percent", ctx)).toBe(50);
+    expect(sortValue(AAPL, "day", ctx)).toBeCloseTo(7.142857, 5);
+  });
+
+  it("returns null for columns a holding has no data for", () => {
+    expect(sortValue(NVDA, "entry", ctx)).toBeNull();
+    expect(sortValue(NVDA, "pl", ctx)).toBeNull();
+    expect(sortValue(CASH, "qty", ctx)).toBeNull();
+    expect(sortValue(CASH, "current", ctx)).toBeNull();
+    expect(sortValue(CASH, "value", ctx)).toBeNull();
+    expect(sortValue(CASH, "percent", ctx)).toBeNull();
   });
 });
 
