@@ -1,98 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRiskMetrics, type RiskState } from "@/hooks/useRiskMetrics";
+import type { RiskResult } from "@/lib/mcp/risk";
 import type { Ticker } from "@/types";
 
 type Props = {
   tickers: Ticker[];
 };
 
-type RiskResponse = {
-  range: "1Y";
-  sample_days: number;
-  sharpe: number | null;
-  beta: number | null;
-  volatility: number | null;
-  max_drawdown: number | null;
-  benchmark: string;
-  missing_symbols?: string[];
-};
-
-type LoadState =
-  | { kind: "idle" }
-  | { kind: "loading" }
-  | { kind: "loaded"; data: RiskResponse }
-  | { kind: "error"; message: string };
-
-function holdingsKey(tickers: Ticker[]): string {
-  // Stable key over the set of {symbol, quantity}. Re-fetch only when shape changes.
-  return tickers
-    .slice()
-    .sort((a, b) => a.symbol.localeCompare(b.symbol))
-    .map((t) => `${t.symbol}:${t.quantity ?? "_"}`)
-    .join("|");
-}
-
 export function RiskMetricsPanel({ tickers }: Props) {
-  const qualifying = useMemo(
-    () =>
-      tickers
-        .filter((t): t is Ticker & { quantity: number } => {
-          return typeof t.quantity === "number" && t.quantity > 0;
-        })
-        .map((t) => ({ symbol: t.symbol, quantity: t.quantity })),
-    [tickers],
+  const state = useRiskMetrics(tickers);
+  const hasQualifying = tickers.some(
+    (t) => typeof t.quantity === "number" && t.quantity > 0,
   );
-  const key = useMemo(
-    () => holdingsKey(qualifying as unknown as Ticker[]),
-    [qualifying],
-  );
-
-  const [state, setState] = useState<LoadState>({ kind: "idle" });
-  const abortRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    abortRef.current?.abort();
-    if (qualifying.length === 0) {
-      queueMicrotask(() => setState({ kind: "idle" }));
-      return;
-    }
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    queueMicrotask(() => setState({ kind: "loading" }));
-
-    (async () => {
-      try {
-        const res = await fetch("/api/risk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tickers: qualifying }),
-          signal: ctrl.signal,
-        });
-        if (!res.ok) {
-          const j = (await res.json().catch(() => ({}))) as {
-            error?: string;
-          };
-          throw new Error(j.error || `Request failed (${res.status})`);
-        }
-        const data = (await res.json()) as RiskResponse;
-        setState({ kind: "loaded", data });
-      } catch (err) {
-        if (ctrl.signal.aborted) return;
-        setState({
-          kind: "error",
-          message: err instanceof Error ? err.message : "Failed to load",
-        });
-      }
-    })();
-
-    return () => ctrl.abort();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
-
-  if (qualifying.length === 0) return null;
+  if (!hasQualifying) return null;
 
   return (
     <section className="mb-4 border-b border-slate-200 px-4 pb-5 dark:border-slate-800/70 sm:mb-5 sm:rounded-xl sm:border sm:bg-white/60 sm:p-5 sm:dark:bg-slate-900/40">
@@ -193,8 +114,8 @@ function Tile({
   label: string;
   tooltip: string;
   value: React.ReactNode;
-  tone: (data: RiskResponse) => Tone;
-  state: LoadState;
+  tone: (data: RiskResult) => Tone;
+  state: RiskState;
 }) {
   const t: Tone = state.kind === "loaded" ? tone(state.data) : "neutral";
   const toneClass =
@@ -222,7 +143,7 @@ function Tile({
   );
 }
 
-function RangeBadge({ state }: { state: LoadState }) {
+function RangeBadge({ state }: { state: RiskState }) {
   const label =
     state.kind === "loaded"
       ? `1Y · ${state.data.sample_days}d`
@@ -237,8 +158,8 @@ function RangeBadge({ state }: { state: LoadState }) {
 }
 
 function renderNumber(
-  state: LoadState,
-  pick: (data: RiskResponse) => number | null,
+  state: RiskState,
+  pick: (data: RiskResult) => number | null,
   format: (v: number) => string,
 ): React.ReactNode {
   if (state.kind === "loading" || state.kind === "idle") {

@@ -88,3 +88,14 @@ export type InsightsSectionKey =
   | "winners"
   | "losers"
   | "suggestion";
+
+export type PortfolioHistoryRange = "1D" | "1M" | "3M" | "YTD" | "1Y";
+
+export type PortfolioHistoryResponse = {
+  range: PortfolioHistoryRange;
+  points: HistoryPoint[];
+  startValue: number | null;
+  endValue: number | null;
+  missing_symbols: string[];
+  caveat: string;
+};

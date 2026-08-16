@@ -74,7 +74,7 @@ export function ConfirmModal({
               if (!busy) onCancel();
             }}
             disabled={busy}
-            className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:text-slate-900 disabled:opacity-60 dark:text-slate-400 dark:hover:text-slate-100"
+            className="inline-flex min-h-[44px] items-center rounded-md px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:text-slate-900 disabled:opacity-60 lg:min-h-0 dark:text-slate-400 dark:hover:text-slate-100"
           >
             {cancelLabel}
           </button>
@@ -82,7 +82,7 @@ export function ConfirmModal({
             type="button"
             onClick={handleConfirm}
             disabled={busy}
-            className={`rounded-md px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-60 ${actionClass}`}
+            className={`inline-flex min-h-[44px] items-center rounded-md px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-60 lg:min-h-0 ${actionClass}`}
           >
             {busy ? busyLabel : confirmLabel}
           </button>

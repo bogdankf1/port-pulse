@@ -12,7 +12,11 @@ import {
   getUserServerSnapshot,
   subscribeUser,
 } from "@/lib/auth";
-import { useFinnhubPrices } from "@/lib/finnhub";
+import { useFinnhubPrices, usePortfolioVersion } from "@/lib/finnhub";
+import { useSectorsVersion } from "@/lib/sectors";
+import { getTheme, getThemeServerSnapshot, subscribeTheme } from "@/lib/theme";
+import { useIsDesktop } from "@/hooks/useIsDesktop";
+import { useQuotes } from "@/hooks/useQuotes";
 import {
   getActiveIdServerSnapshot,
   getActivePortfolioId,
@@ -26,13 +30,21 @@ import { PortfolioTable } from "./PortfolioTable";
 import { PortfolioSelector } from "./PortfolioSelector";
 import { PortfolioGearMenu } from "./PortfolioGearMenu";
 import { PortfolioHeatmap } from "./PortfolioHeatmap";
-import { SectorBreakdown } from "./SectorBreakdown";
+import { SectorBreakdown, colorFor, computeSlices } from "./SectorBreakdown";
 import { RiskMetricsPanel } from "./RiskMetricsPanel";
 import { Uploader } from "./Uploader";
 import { UploaderModal } from "./UploaderModal";
 import { AddTickerModal } from "./AddTickerModal";
 import { AddMenu } from "./AddMenu";
 import { InsightsDrawer } from "./InsightsDrawer";
+import { HoldingsList } from "./mobile/HoldingsList";
+import { PortfolioHero } from "./mobile/PortfolioHero";
+import { AnalyticsSheet } from "./mobile/AnalyticsSheet";
+import { MixTab } from "./mobile/sheet/MixTab";
+import { RiskTab } from "./mobile/sheet/RiskTab";
+import { HeatmapTab } from "./mobile/sheet/HeatmapTab";
+import { InsightsTab } from "./mobile/sheet/InsightsTab";
+import type { Ticker } from "@/types";
 
 type ViewMode = "table" | "heatmap";
 const VIEW_STORAGE_KEY = "pp:view:v1";
@@ -92,6 +104,8 @@ export function WatchlistDashboard() {
   const isLoggedIn = Boolean(user);
   const symbols = useMemo(() => tickers.map((t) => t.symbol), [tickers]);
   useFinnhubPrices(symbols);
+  const isDesktop = useIsDesktop();
+  const quotes = useQuotes(symbols);
 
   const overCap = tickers.length > SOFT_CAP;
   const showSelector = isLoggedIn && portfolios.length > 0;
@@ -113,26 +127,29 @@ export function WatchlistDashboard() {
         <div className="flex items-center gap-2">
           {tickers.length > 0 && (
             <>
-              <ViewToggle view={view} onChange={setView} />
+              {isDesktop && <ViewToggle view={view} onChange={setView} />}
               <AddMenu
                 onAddTicker={() => setAddOpen(true)}
                 onAddScreenshot={() => setUploaderOpen(true)}
               />
-              <button
-                onClick={() => setInsightsOpen(true)}
-                aria-label="AI insights"
-                title="AI insights"
-                className="inline-flex h-[30px] items-center justify-center gap-1.5 rounded-md border border-slate-300 px-2 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 sm:px-2.5"
-              >
-                <SparkIcon />
-                <span className="hidden sm:inline">Insights</span>
-              </button>
+              {/* Below lg the AI sheet tab replaces this. */}
+              {isDesktop && (
+                <button
+                  onClick={() => setInsightsOpen(true)}
+                  aria-label="AI insights"
+                  title="AI insights"
+                  className="inline-flex h-[30px] items-center justify-center gap-1.5 rounded-md border border-slate-300 px-2 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 sm:px-2.5"
+                >
+                  <SparkIcon />
+                  <span className="hidden sm:inline">Insights</span>
+                </button>
+              )}
               {isLoggedIn && (
                 <Link
                   href="/compare"
                   aria-label="Compare portfolios"
                   title="Compare portfolios"
-                  className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100"
+                  className={`inline-flex items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 ${isDesktop ? "h-[30px] w-[30px]" : "min-h-[44px] min-w-[44px]"}`}
                 >
                   <ScaleIcon />
                 </Link>
@@ -143,26 +160,54 @@ export function WatchlistDashboard() {
         </div>
       </header>
 
-      {overCap && (
-        <div className="mx-4 mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:border-amber-500/30 dark:text-amber-200 sm:mx-0">
-          Finnhub free tier supports about {SOFT_CAP} live symbols per
-          connection. Some prices may not stream until you remove some.
-        </div>
-      )}
+      {isDesktop && overCap && <CapBanner />}
 
       {tickers.length > 0 ? (
-        <>
-          <SectorBreakdown tickers={tickers} />
-          <RiskMetricsPanel tickers={tickers} />
-          {view === "table" ? (
-            <PortfolioTable
+        isDesktop ? (
+          <>
+            <SectorBreakdown tickers={tickers} />
+            <RiskMetricsPanel tickers={tickers} />
+            {view === "table" ? (
+              <PortfolioTable
+                tickers={tickers}
+                onRemove={(symbol) => removeFromWatchlist(symbol)}
+              />
+            ) : (
+              <PortfolioHeatmap tickers={tickers} />
+            )}
+          </>
+        ) : (
+          <>
+            <PortfolioHero
               tickers={tickers}
+              quotes={quotes}
+              portfolioName={activePortfolioName ?? "Portfolio"}
+            />
+            {overCap && <CapBanner />}
+            <HoldingsList
+              tickers={tickers}
+              quotes={quotes}
               onRemove={(symbol) => removeFromWatchlist(symbol)}
             />
-          ) : (
-            <PortfolioHeatmap tickers={tickers} />
-          )}
-        </>
+            <AnalyticsSheet peek={<SheetPeek tickers={tickers} />}>
+              {(tab) =>
+                tab === "mix" ? (
+                  <MixTab tickers={tickers} quotes={quotes} />
+                ) : tab === "risk" ? (
+                  <RiskTab tickers={tickers} />
+                ) : tab === "heatmap" ? (
+                  <HeatmapTab tickers={tickers} />
+                ) : (
+                  <InsightsTab
+                    tickers={tickers}
+                    portfolioName={activePortfolioName ?? "Portfolio"}
+                    portfolioId={activeId ?? null}
+                  />
+                )
+              }
+            </AnalyticsSheet>
+          </>
+        )
       ) : (
         <EmptyPortfolio
           ready={portfolioReady}
@@ -187,6 +232,15 @@ export function WatchlistDashboard() {
         portfolioId={activeId ?? null}
       />
     </main>
+  );
+}
+
+function CapBanner() {
+  return (
+    <div className="mx-4 mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:border-amber-500/30 dark:text-amber-200 sm:mx-0">
+      Finnhub free tier supports about {SOFT_CAP} live symbols per
+      connection. Some prices may not stream until you remove some.
+    </div>
   );
 }
 
@@ -313,5 +367,49 @@ function ScaleIcon() {
       <path d="M6 8l-3 7a4 4 0 0 0 6 0z" />
       <path d="M18 8l-3 7a4 4 0 0 0 6 0z" />
     </svg>
+  );
+}
+
+function SheetPeek({ tickers }: { tickers: Ticker[] }) {
+  const symbols = useMemo(() => tickers.map((t) => t.symbol), [tickers]);
+  const priceVersion = usePortfolioVersion(symbols);
+  const sectorsVersion = useSectorsVersion(symbols);
+  const theme = useSyncExternalStore(
+    subscribeTheme,
+    getTheme,
+    getThemeServerSnapshot,
+  );
+  const slices = useMemo(
+    () => computeSlices(tickers),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tickers, priceVersion, sectorsVersion],
+  );
+
+  const top = slices[0];
+
+  return (
+    <span className="flex items-center gap-3">
+      <span className="flex h-2.5 flex-1 overflow-hidden rounded">
+        {slices.length > 0 ? (
+          slices.map((s) => (
+            <span
+              key={s.sector}
+              style={{
+                width: `${s.percent * 100}%`,
+                backgroundColor: colorFor(s.sector, theme),
+              }}
+            />
+          ))
+        ) : (
+          <span className="w-full bg-slate-200 dark:bg-slate-700" />
+        )}
+      </span>
+      <span className="shrink-0 font-mono text-[10px] text-slate-500">
+        {top ? `${top.sector} ${(top.percent * 100).toFixed(0)}%` : "Analytics"}
+      </span>
+      <span aria-hidden className="shrink-0 text-slate-400">
+        ▲
+      </span>
+    </span>
   );
 }
