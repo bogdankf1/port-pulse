@@ -2,9 +2,15 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import { TickerTableRow } from "./TickerTableRow";
-import { TickerCard } from "./TickerCard";
 import { ConfirmModal } from "./ConfirmModal";
-import { getPriceSync, usePortfolioVersion } from "@/lib/finnhub";
+import { useQuotes } from "@/hooks/useQuotes";
+import {
+  computeTotals,
+  defaultDir,
+  sortTickers,
+  type SortColumn,
+  type SortState,
+} from "@/lib/holdings";
 import { getProfileNameSync } from "@/lib/profile";
 import { formatMoney, plColor } from "@/lib/format";
 import type { Ticker } from "@/types";
@@ -14,143 +20,33 @@ type Props = {
   onRemove: (symbol: string) => void;
 };
 
-type SortColumn =
-  | "ticker"
-  | "name"
-  | "qty"
-  | "entry"
-  | "current"
-  | "value"
-  | "pl"
-  | "percent";
-type SortDir = "asc" | "desc";
-type SortState = { column: SortColumn; direction: SortDir };
-
-const NUMERIC: ReadonlySet<SortColumn> = new Set([
-  "qty",
-  "entry",
-  "current",
-  "value",
-  "pl",
-  "percent",
-]);
-
-function defaultDir(col: SortColumn): SortDir {
-  return NUMERIC.has(col) ? "desc" : "asc";
-}
-
-function sortValue(
-  t: Ticker,
-  col: SortColumn,
-  totalValue: number,
-): string | number | null {
-  switch (col) {
-    case "ticker":
-      return t.symbol;
-    case "name": {
-      const n = t.name || getProfileNameSync(t.symbol) || "";
-      return n || null;
-    }
-    case "qty":
-      return t.quantity ?? null;
-    case "entry":
-      return t.entryPrice ?? null;
-    case "current":
-      return getPriceSync(t.symbol) ?? null;
-    case "value": {
-      const p = getPriceSync(t.symbol);
-      return p != null && t.quantity != null ? p * t.quantity : null;
-    }
-    case "pl": {
-      const p = getPriceSync(t.symbol);
-      if (p == null || t.quantity == null || t.entryPrice == null) return null;
-      return (p - t.entryPrice) * t.quantity;
-    }
-    case "percent": {
-      const p = getPriceSync(t.symbol);
-      if (p == null || t.quantity == null || totalValue <= 0) return null;
-      return (p * t.quantity) / totalValue;
-    }
-  }
-}
-
-function sortTickers(
-  tickers: Ticker[],
-  sort: SortState | null,
-  totalValue: number,
-): Ticker[] {
-  if (!sort) return tickers;
-  const dir = sort.direction === "asc" ? 1 : -1;
-  return [...tickers].sort((a, b) => {
-    const va = sortValue(a, sort.column, totalValue);
-    const vb = sortValue(b, sort.column, totalValue);
-    if (va == null && vb == null) return 0;
-    if (va == null) return 1;
-    if (vb == null) return -1;
-    if (typeof va === "string" && typeof vb === "string") {
-      return va.localeCompare(vb) * dir;
-    }
-    return ((va as number) - (vb as number)) * dir;
-  });
-}
-
-type Totals = {
-  marketValue: number;
-  costBasis: number;
-  pl: number | null;
-  hasAnyValue: boolean;
-};
-
-function computeTotals(tickers: Ticker[]): Totals {
-  let marketValue = 0;
-  let costBasis = 0;
-  let hasAnyPL = false;
-  let hasAnyValue = false;
-  for (const t of tickers) {
-    const price = getPriceSync(t.symbol);
-    if (price != null && t.quantity != null) {
-      marketValue += price * t.quantity;
-      hasAnyValue = true;
-    }
-    if (t.entryPrice != null && t.quantity != null && price != null) {
-      costBasis += t.entryPrice * t.quantity;
-      hasAnyPL = true;
-    }
-  }
-  return {
-    marketValue,
-    costBasis,
-    pl: hasAnyPL ? marketValue - costBasis : null,
-    hasAnyValue,
-  };
-}
-
 export function PortfolioTable({ tickers, onRemove }: Props) {
   const symbols = useMemo(() => tickers.map((t) => t.symbol), [tickers]);
-  const version = usePortfolioVersion(symbols);
+  const quotes = useQuotes(symbols);
   const [sort, setSort] = useState<SortState | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
 
   const requestRemove = (symbol: string) => setPendingRemoval(symbol);
 
-  const totals = useMemo(
-    () => computeTotals(tickers),
-    // version forces recompute on any price tick
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickers, version],
-  );
+  const totals = useMemo(() => computeTotals(tickers, quotes), [tickers, quotes]);
 
   const sortedTickers = useMemo(
-    () => sortTickers(tickers, sort, totals.marketValue),
-    // version keeps price-based sorts in sync with live ticks
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickers, sort, version, totals.marketValue],
+    () =>
+      sortTickers(tickers, sort, {
+        quotes,
+        totalValue: totals.marketValue,
+        nameFor: getProfileNameSync,
+      }),
+    [tickers, sort, quotes, totals.marketValue],
   );
 
   function toggle(col: SortColumn) {
     setSort((prev) => {
       if (prev?.column === col) {
-        return { column: col, direction: prev.direction === "asc" ? "desc" : "asc" };
+        return {
+          column: col,
+          direction: prev.direction === "asc" ? "desc" : "asc",
+        };
       }
       return { column: col, direction: defaultDir(col) };
     });
@@ -161,52 +57,12 @@ export function PortfolioTable({ tickers, onRemove }: Props) {
     totals.pl != null && totals.costBasis > 0
       ? (totals.pl / totals.costBasis) * 100
       : null;
-  const totalPlColor =
-    totals.pl == null ? "text-slate-500" : plColor(totals.pl);
+  const totalPlColor = totals.pl == null ? "text-slate-500" : plColor(totals.pl);
 
   return (
     <>
-      {/* Mobile: card list (< sm) — edge-to-edge, no outer chrome */}
-      <div className="sm:hidden">
-        {sortedTickers.map((t) => (
-          <TickerCard
-            key={t.symbol}
-            ticker={t}
-            totalValue={totals.marketValue}
-            onRemove={() => requestRemove(t.symbol)}
-          />
-        ))}
-        <div className="flex items-baseline justify-between gap-3 border-t-2 border-slate-300 bg-slate-50 px-4 py-3 dark:border-slate-700 dark:bg-slate-900/60">
-          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300">
-            Total
-          </span>
-          <div className="flex flex-col items-end gap-0.5">
-            <span className="font-mono text-sm font-bold tabular-nums text-slate-900 dark:text-slate-100">
-              {totals.hasAnyValue ? (
-                `$${formatMoney(totals.marketValue)}`
-              ) : (
-                <span className="text-slate-400 dark:text-slate-600">—</span>
-              )}
-            </span>
-            {totals.pl != null && (
-              <span
-                className={`font-mono text-[11px] tabular-nums ${totalPlColor}`}
-              >
-                {totalPlPositive ? "+" : "−"}${formatMoney(Math.abs(totals.pl))}
-                {totalPlPct != null && (
-                  <span className="ml-1 opacity-80">
-                    {totalPlPositive ? "+" : "−"}
-                    {Math.abs(totalPlPct).toFixed(2)}%
-                  </span>
-                )}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Desktop / tablet: table (≥ sm) */}
-      <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white/60 dark:border-slate-800/70 dark:bg-slate-900/40 sm:block">
+      <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white/60 dark:border-slate-800/70 dark:bg-slate-900/40 lg:block">
       <table className="min-w-full">
         <thead>
           <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:border-slate-800/70 dark:bg-slate-900/60">
