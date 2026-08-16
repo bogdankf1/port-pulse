@@ -162,6 +162,7 @@ describe("sortValue", () => {
     expect(sortValue(AAPL, "entry", ctx)).toBe(100);
     expect(sortValue(AAPL, "current", ctx)).toBe(150);
     expect(sortValue(AAPL, "value", ctx)).toBe(1500);
+    expect(sortValue(AAPL, "pl", ctx)).toBe(500);
     // 1500 / 3000 — the only assertion that pins ctx.totalValue being wired through
     expect(sortValue(AAPL, "percent", ctx)).toBe(50);
     expect(sortValue(AAPL, "day", ctx)).toBeCloseTo(7.142857, 5);
