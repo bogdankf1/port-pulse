@@ -13,8 +13,11 @@ type Props = { tickers: Ticker[] };
 
 export function RiskTab({ tickers }: Props) {
   const state = useRiskMetrics(tickers);
+  const hasQualifying = tickers.some(
+    (t) => typeof t.quantity === "number" && t.quantity > 0,
+  );
 
-  if (state.kind === "idle") {
+  if (!hasQualifying) {
     return (
       <p className="py-8 text-center font-mono text-xs text-slate-500">
         Add quantities to your holdings to see risk metrics.

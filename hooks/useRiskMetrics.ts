@@ -14,6 +14,11 @@ export type RiskState =
   | { kind: "loaded"; data: RiskResult }
   | { kind: "error"; message: string };
 
+// Risk metrics are computed from a year of daily closes — they do not move
+// meaningfully within a session, and the endpoint fans out to Yahoo per
+// symbol. Cache by holdings shape so reopening the tab is free.
+const cache = new Map<string, RiskResult>();
+
 function holdingsKey(holdings: { symbol: string; quantity: number }[]): string {
   return holdings
     .slice()
@@ -44,6 +49,11 @@ export function useRiskMetrics(tickers: Ticker[]): RiskState {
       queueMicrotask(() => setState({ kind: "idle" }));
       return;
     }
+    const cached = cache.get(key);
+    if (cached) {
+      queueMicrotask(() => setState({ kind: "loaded", data: cached }));
+      return;
+    }
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     queueMicrotask(() => setState({ kind: "loading" }));
@@ -60,7 +70,9 @@ export function useRiskMetrics(tickers: Ticker[]): RiskState {
           const j = (await res.json().catch(() => ({}))) as { error?: string };
           throw new Error(j.error || `Request failed (${res.status})`);
         }
-        setState({ kind: "loaded", data: (await res.json()) as RiskResult });
+        const data = (await res.json()) as RiskResult;
+        cache.set(key, data);
+        setState({ kind: "loaded", data });
       } catch (err) {
         if (ctrl.signal.aborted) return;
         setState({
