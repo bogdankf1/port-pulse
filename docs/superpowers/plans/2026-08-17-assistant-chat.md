@@ -51,10 +51,11 @@ These were checked while writing the spec. They shape the code below.
 
 1. **`client.beta.messages.toolRunner` exists** in the installed `@anthropic-ai/sdk` 0.95.1 (`resources/beta/messages/messages.d.ts`), and `helpers/beta/zod` ships with it. `zod ^4.4.3` is already a dependency.
 2. **`betaZodTool({ name, inputSchema, description, run })`** takes a `ZodType` and its `run` returns `string | BetaToolResultContentBlockParam[]`.
-3. **`toolRunner({ ..., stream: true })` returns `BetaToolRunner<true>`**, which is async-iterable yielding one `BetaMessageStream` per model turn, plus `.done()` for the final message.
-4. **`lib/mcp/tools.ts` already exports `z.object(...)` schemas** for all six tools: `listPortfoliosSchema`, `getPortfolioSchema`, `getPositionSchema`, `getPriceHistorySchema`, `getRiskMetricsSchema`, `getSectorBreakdownSchema`. Pass them straight to `betaZodTool`.
-5. **All six tool functions take `McpAuthContext` first**, and `createUserClient(ctx)` (`lib/mcp/supabase.ts:14`) uses only `ctx.token`, as a bearer against the **anon** key — so **RLS applies as that user**. `clientId`/`scopes` are unread by tool bodies.
-6. **`createServerSupabase()`** (`lib/supabase-server.ts`) returns an `@supabase/ssr` server client over cookies.
+3. **`toolRunner({ ..., stream: true })` returns `BetaToolRunner<true>`**, which is async-iterable yielding one `BetaMessageStream` per model turn (`lib/tools/BetaToolRunner.d.ts:17`), plus `.done()` for the final message. Each `BetaMessageStream` is itself async-iterable over `BetaMessageStreamEvent` and exposes `finalMessage()` (`lib/BetaMessageStream.d.ts:109,119`).
+4. **`StopReason` includes `'refusal'`** (`resources/messages/messages.d.ts:962`), so the refusal check in Task 7 is a typed comparison, not a string guess.
+5. **`lib/mcp/tools.ts` already exports `z.object(...)` schemas** for all six tools: `listPortfoliosSchema`, `getPortfolioSchema`, `getPositionSchema`, `getPriceHistorySchema`, `getRiskMetricsSchema`, `getSectorBreakdownSchema`. Pass them straight to `betaZodTool`.
+6. **All six tool functions take `McpAuthContext` first**, and `createUserClient(ctx)` (`lib/mcp/supabase.ts:14`) uses only `ctx.token`, as a bearer against the **anon** key — so **RLS applies as that user**. `clientId`/`scopes` are unread by tool bodies.
+7. **`createServerSupabase()`** (`lib/supabase-server.ts`) returns an `@supabase/ssr` server client over cookies.
 
 ---
 
@@ -1110,10 +1111,24 @@ export async function* runAssistantTurn(args: {
       })),
       // Opus 5 can decline via its safety classifiers. Routing the retry
       // server-side means a decline is recovered rather than shown as a dead end.
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
-    } as Parameters<typeof client.beta.messages.toolRunner>[0],
-    { signal: args.signal },
+      //
+      // `fallbacks` appears nowhere in @anthropic-ai/sdk 0.95.1's resource
+      // types, so it is introduced by spread rather than by asserting the whole
+      // params object. Spread properties skip TypeScript's excess-property
+      // check, which keeps every field above fully type-checked; a blanket
+      // `as Parameters<typeof client.beta.messages.toolRunner>[0]` would have
+      // suppressed errors on `tools`, `system` and `messages` as well.
+      ...{ fallbacks: "default" },
+    },
+    {
+      // The beta rides the header rather than a body `betas` key.
+      // `BetaToolRunnerParams` derives from the **non-beta**
+      // `MessageCreateParams` (BetaToolRunner.d.ts:144) so it has no `betas`
+      // field — but `BetaToolRunnerRequestOptions` is
+      // `Pick<RequestOptions, 'headers' | 'signal'>`, so this is fully typed.
+      headers: { "anthropic-beta": "server-side-fallback-2026-07-01" },
+      signal: args.signal,
+    },
   );
 
   // Tools named in one model turn have been executed by the time the next turn
@@ -1165,7 +1180,16 @@ export async function* runAssistantTurn(args: {
 Run: `npx tsc --noEmit && npm run lint`
 Expected: clean.
 
-If `fallbacks` or `betas` are not in the installed SDK's `BetaToolRunnerParams` type, the `as Parameters<...>[0]` cast above is what carries them through — the SDK forwards unknown body keys. **If the cast is not needed, remove it** and say so; an unnecessary assertion hides real mismatches.
+All of this was verified against the installed SDK before the plan was written, so it should compile as-is:
+
+| Thing | Status in `@anthropic-ai/sdk` 0.95.1 |
+|---|---|
+| `output_config: { effort: "high" }` | Fully typed — `OutputConfig.effort` is `'low' \| 'medium' \| 'high' \| 'xhigh' \| 'max' \| null` (`resources/messages/messages.d.ts:800`) |
+| `fallbacks` | **Absent from the types.** Carried by spread, which needs no assertion |
+| `betas` | Absent — `BetaToolRunnerParams` wraps the non-beta `MessageCreateParams`. Use the header instead |
+| `{ headers, signal }` 2nd arg | Fully typed — `BetaToolRunnerRequestOptions = Pick<RequestOptions, 'headers' \| 'signal'>` |
+
+**Do not add a type assertion to make this compile.** If it does not compile, report the exact error — a cast here would suppress errors on `tools`, `system` and `messages` too, which is the opposite of what we want.
 
 - [ ] **Step 3: Commit**
 
