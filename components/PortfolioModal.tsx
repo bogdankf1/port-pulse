@@ -129,7 +129,7 @@ function ModalImpl({
             placeholder={state.kind === "create" ? "e.g. Roth IRA" : ""}
             maxLength={60}
             disabled={busy}
-            className="mt-4 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none transition-colors focus:border-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-emerald-400"
+            className="mt-4 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-base text-slate-900 outline-none lg:text-sm transition-colors focus:border-emerald-500 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-emerald-400"
           />
         )}
 

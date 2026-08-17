@@ -140,7 +140,7 @@ function Inner({
               onChange={(e) => setQuery(e.target.value)}
               placeholder="AAPL, Apple, NVDA…"
               autoComplete="off"
-              className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none transition-colors focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-emerald-400"
+              className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-base text-slate-900 outline-none lg:text-sm transition-colors focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-emerald-400"
             />
 
             <div className="mt-3 max-h-64 overflow-y-auto rounded-md border border-slate-200 bg-white/40 dark:border-slate-800 dark:bg-slate-900/40">
@@ -316,7 +316,7 @@ const NumberField = forwardRef(function NumberField(
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm text-slate-900 outline-none transition-colors focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-emerald-400"
+        className="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-base text-slate-900 outline-none lg:text-sm transition-colors focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:border-emerald-400"
       />
     </div>
   );
