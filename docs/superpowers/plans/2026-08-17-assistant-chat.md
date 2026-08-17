@@ -1481,6 +1481,19 @@ smaller than adding a markdown dependency this project deliberately
 does not have.
 ```
 
+> **AMENDED DURING EXECUTION.** Two things the plan's code got wrong, both fixed
+> in `e77e6ba` / follow-up:
+>
+> 1. **`SuggestionChips` fails `npm run lint` as written.** React Compiler's
+>    `react-hooks/set-state-in-effect` rejects the synchronous `setPrompts` in the
+>    effect body. The effect is the entire point — randomising during render
+>    desyncs server and client markup — so the shipped file carries a one-line
+>    `eslint-disable-next-line` with a justification. Precedent:
+>    `app/compare/CompareView.tsx:128`.
+> 2. **The height `calc` was off by 1px.** `h-14` is 56px but `border-b` sits on
+>    the Navbar's outer element, so the real bar is 57px; the original calc left
+>    `main` ending 1px past the fold. Now `3.5rem - 1px`.
+
 Design direction: Claude's chat layout, Port Pulse's skin. Dark-first, monospace for data, no generic template look. Follow `CLAUDE.md`'s design direction.
 
 - [ ] **Step 1: The route shell**
@@ -1881,7 +1894,7 @@ export function AssistantView() {
     return (
       <div
         className="mx-auto w-full max-w-3xl px-4 py-10"
-        style={{ height: "calc(100dvh - 56px - env(safe-area-inset-top))" }}
+        style={{ height: "calc(100dvh - 3.5rem - 1px - env(safe-area-inset-top))" }}
       >
         <div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
       </div>
@@ -1894,16 +1907,17 @@ export function AssistantView() {
   return (
     <main
       className="mx-auto flex w-full max-w-3xl flex-col"
-      // The global Navbar is `h-14` (56px) **plus** its own
-      // `env(safe-area-inset-top)` (Navbar.tsx:16), so both must come off —
-      // subtracting only 56px puts the composer under the fold on a notched
-      // device in standalone mode.
+      // Three things come off the viewport: the Navbar's inner `h-14`
+      // (as 3.5rem, so it tracks text scaling per WCAG 1.4.4 rather than
+      // drifting), its `border-b` — which sits on the OUTER element, making the
+      // real bar 57px not 56 — and its own `env(safe-area-inset-top)`, without
+      // which the composer lands under the fold on a notched device.
       //
       // At lg this leaves the root layout's footer one footer-height below the
       // fold. That is the accepted cost of a transcript that scrolls on its own
       // rather than scrolling the document; the footer is `hidden` below lg,
       // which is the width that matters here.
-      style={{ height: "calc(100dvh - 56px - env(safe-area-inset-top))" }}
+      style={{ height: "calc(100dvh - 3.5rem - 1px - env(safe-area-inset-top))" }}
     >
       <div className="flex-1 overflow-y-auto px-4 py-6">
         {empty ? (

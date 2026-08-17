@@ -159,7 +159,7 @@ export function AssistantView() {
     return (
       <div
         className="mx-auto w-full max-w-3xl px-4 py-10"
-        style={{ height: "calc(100dvh - 56px - env(safe-area-inset-top))" }}
+        style={{ height: "calc(100dvh - 3.5rem - 1px - env(safe-area-inset-top))" }}
       >
         <div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
       </div>
@@ -172,16 +172,24 @@ export function AssistantView() {
   return (
     <main
       className="mx-auto flex w-full max-w-3xl flex-col"
-      // The global Navbar is `h-14` (56px) **plus** its own
-      // `env(safe-area-inset-top)` (Navbar.tsx:16), so both must come off —
-      // subtracting only 56px puts the composer under the fold on a notched
-      // device in standalone mode.
+      // Three things come off the viewport, and all three are load-bearing:
+      //
+      //   3.5rem  the Navbar's inner `h-14` (Navbar.tsx:18). Kept in rem, not
+      //           hardcoded as 56px, so it still tracks the bar when the user
+      //           scales text up (WCAG 1.4.4) instead of drifting out of sync.
+      //   1px     the Navbar's `border-b`, which sits on the OUTER element
+      //           (Navbar.tsx:15) and so adds to its height. Measured: the bar
+      //           is 57px, not 56. Omitting this leaves `main` ending 1px past
+      //           the fold and the document scrolling by 1px.
+      //   inset   the Navbar's own `env(safe-area-inset-top)` (Navbar.tsx:16),
+      //           without which the composer lands under the fold on a notched
+      //           device in standalone mode.
       //
       // At lg this leaves the root layout's footer one footer-height below the
       // fold. That is the accepted cost of a transcript that scrolls on its own
       // rather than scrolling the document; the footer is `hidden` below lg,
       // which is the width that matters here.
-      style={{ height: "calc(100dvh - 56px - env(safe-area-inset-top))" }}
+      style={{ height: "calc(100dvh - 3.5rem - 1px - env(safe-area-inset-top))" }}
     >
       <div className="flex-1 overflow-y-auto px-4 py-6">
         {empty ? (
