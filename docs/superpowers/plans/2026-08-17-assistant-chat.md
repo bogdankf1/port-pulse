@@ -661,7 +661,7 @@ If the import of `lib/mcp/tools.ts` pulls in `server-only` and throws under vite
 - [ ] **Step 5: Type check, lint, full suite**
 
 Run: `npx tsc --noEmit && npm run lint && npm test`
-Expected: clean; total rises to 94 (80 + 3 + 7 + 4).
+Expected: clean; total rises to 95 (80 + 3 + 7 + 5, including the assignability guard).
 
 - [ ] **Step 6: Commit**
 
@@ -841,7 +841,7 @@ export function buildSystemPrompt(args: {
 - [ ] **Step 4: Run the tests**
 
 Run: `npm test -- lib/assistant/prompts.test.ts`
-Expected: PASS, 8 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -884,11 +884,19 @@ export type AssistantConversation = {
 
 Only `deriveTitle` is pure and therefore testable here; the read/write functions are thin Supabase calls verified in the browser.
 
-Create `lib/assistant/persist.test.ts`:
+Create `lib/assistant/persist.test.ts`.
+
+**`persist.ts` starts with `import "server-only"`, so a plain static import here
+fails under vitest** — that package throws unless resolved through Next's bundler.
+Stub it and import dynamically, exactly as `lib/mcp/auth.test.ts`,
+`lib/mcp/endpoint.test.ts` and `lib/assistant/tools.test.ts` already do:
 
 ```ts
-import { describe, expect, it } from "vitest";
-import { deriveTitle, MAX_TITLE_LENGTH } from "./persist";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("server-only", () => ({}));
+
+const { deriveTitle, MAX_TITLE_LENGTH } = await import("./persist");
 
 describe("deriveTitle", () => {
   it("uses the first message as-is when it is short", () => {
@@ -1116,9 +1124,11 @@ export async function* runAssistantTurn(args: {
           text: buildSystemPrompt({
             activePortfolioName: args.activePortfolioName,
           }),
-          // The system prompt and tool definitions are the stable prefix, and
-          // they render ahead of the conversation — so caching here pays on
-          // every turn after the first.
+          // Tools serialize before `system`, which serializes before the
+          // messages, so one breakpoint here caches the whole stable prefix —
+          // measured at ~975 tokens (2442 chars of tool definitions + 1068 of
+          // system prompt), comfortably clear of this model's 512-token
+          // minimum. It pays on every turn after the first.
           cache_control: { type: "ephemeral" },
         },
       ],
@@ -1388,7 +1398,7 @@ export async function POST(request: Request) {
 - [ ] **Step 2: Gates**
 
 Run: `npx tsc --noEmit && npm run lint && npm test && npm run build`
-Expected: clean; 94 tests. The build matters — this route imports `server-only` modules.
+Expected: clean; 109 tests. The build matters — this route imports `server-only` modules.
 
 - [ ] **Step 3: Exercise it by hand**
 
@@ -1667,7 +1677,12 @@ Create `components/assistant/AssistantView.tsx`:
 "use client";
 
 import { useCallback, useRef, useState, useSyncExternalStore } from "react";
-import { getUser, getUserServerSnapshot, subscribeUser } from "@/lib/auth";
+import {
+  getUser,
+  getUserServerSnapshot,
+  isAuthReady,
+  subscribeUser,
+} from "@/lib/auth";
 import {
   getActiveIdServerSnapshot,
   getActivePortfolioId,
@@ -1688,6 +1703,24 @@ export function AssistantView() {
     subscribeUser,
     getUser,
     getUserServerSnapshot,
+  );
+  // Auth readiness must be its OWN subscribed snapshot, not a plain
+  // `isAuthReady()` call during render.
+  //
+  // `getUser()` returns null both while the initial auth fetch is in flight and
+  // when the user is genuinely signed out. Branching on `user` alone therefore
+  // flashes the sign-in prompt at every signed-in visitor — the same
+  // loading-mistaken-for-empty bug that `isWatchlistLoading()` exists to fix.
+  //
+  // And reading `isAuthReady()` inline would not work either: for a signed-out
+  // user the snapshot is null before and after `lib/auth.ts`'s `emit()`, so
+  // `useSyncExternalStore` sees no change and never re-renders — the pane would
+  // sit on "loading" forever. `isAuthReady` as its own snapshot flips
+  // false → true, which does re-render.
+  const authReady = useSyncExternalStore(
+    subscribeUser,
+    isAuthReady,
+    () => false,
   );
   const portfolios = useSyncExternalStore(
     subscribePortfolios,
@@ -1795,6 +1828,17 @@ export function AssistantView() {
     [activePortfolioName],
   );
 
+  // Order matters: readiness first, identity second.
+  if (!authReady) {
+    return (
+      <div
+        className="mx-auto w-full max-w-3xl px-4 py-10"
+        style={{ height: "calc(100dvh - 56px - env(safe-area-inset-top))" }}
+      >
+        <div className="h-4 w-24 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+      </div>
+    );
+  }
   if (!user) return <SignInPrompt />;
 
   const empty = messages.length === 0 && !streaming;
@@ -1850,7 +1894,7 @@ export function AssistantView() {
 - [ ] **Step 7: Gates**
 
 Run: `npx tsc --noEmit && npm run lint && npm test && npm run build`
-Expected: clean, 94 tests.
+Expected: clean, 109 tests.
 
 - [ ] **Step 8: Browser verification**
 
@@ -1863,8 +1907,9 @@ Report each individually:
 4. A cross-portfolio question (`Which of my portfolios has more tech exposure?`) — the old report could not answer this at all.
 5. Stop mid-stream: streaming halts, partial text is kept.
 6. Signed out (or with cookies cleared): the sign-in prompt renders.
-7. 393px in an iframe: the composer is usable and does not zoom on focus.
-8. No console errors, no hydration warnings.
+7. **Signed in, hard reload: the sign-in prompt must never flash.** Throttle the network in DevTools to make the auth fetch slow enough to observe. Seeing "Sign in to use the assistant" appear and then vanish means the `authReady` gate is not working — report it rather than dismissing it as fast enough not to matter.
+8. 393px in an iframe: the composer is usable and does not zoom on focus.
+9. No console errors, no hydration warnings.
 
 - [ ] **Step 9: Commit**
 
