@@ -3,6 +3,7 @@ import { getUser, isAuthReady, subscribeUser } from "./auth";
 import { isSupabaseConfigured } from "./supabase";
 import {
   getActivePortfolioId,
+  isPortfoliosLoading,
   subscribeActivePortfolio,
 } from "./portfolios";
 
@@ -224,9 +225,16 @@ export function isWatchlistLoading(): boolean {
   const userId = getUser()?.id ?? null;
   // Signed out is terminal — storage is in-memory, so EMPTY is the final answer.
   if (!userId) return false;
-  // Signed in, but the portfolio list hasn't produced an active id yet.
   const portfolioId = getActivePortfolioId();
-  if (!portfolioId) return true;
+  if (!portfolioId) {
+    // No active portfolio. That is "still loading" only while the portfolio
+    // list is in flight. `lib/portfolios.ts` sets `activeId: list[0]?.id ?? null`
+    // with `loading: false`, so a signed-in user with zero portfolios — or one
+    // whose portfolios fetch failed — legitimately never gets an id, and must
+    // not be stranded on a skeleton forever. That would be worse than the flash
+    // this function exists to remove.
+    return isPortfoliosLoading();
+  }
   return loadedKey !== loadKey(userId, portfolioId);
 }
 
