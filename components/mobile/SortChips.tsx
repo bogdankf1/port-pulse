@@ -40,7 +40,7 @@ export function SortChips({ sort, onChange }: Props) {
                 : `Sort by ${label}`
             }
             onClick={() => onChange(nextSort(sort, column))}
-            className={`inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-md border px-3 font-mono text-[11px] font-medium uppercase tracking-wider transition-colors ${
+            className={`inline-flex min-h-[34px] shrink-0 items-center gap-1 rounded-md border px-2.5 font-mono text-[11px] font-medium uppercase tracking-wider transition-colors ${
               active
                 ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
                 : "border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-400"

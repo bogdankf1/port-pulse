@@ -1,7 +1,16 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import {
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import { useModalDismiss } from "@/hooks/useModalDismiss";
+
+/** Vertical travel that commits a swipe. Short enough to feel responsive,
+ *  long enough that a sloppy tap doesn't register as a drag. */
+const DRAG_THRESHOLD = 32;
 
 export type SheetTab = "mix" | "risk" | "heatmap" | "ai";
 
@@ -28,14 +37,52 @@ type Props = {
 export function AnalyticsSheet({ peek, children }: Props) {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<SheetTab>("mix");
+  const dragStartY = useRef<number | null>(null);
+  const draggedRef = useRef(false);
+
+  // Swipe up to open, down to close. Deliberately a threshold commit rather
+  // than a live-following drag: the sheet's content only exists while open, so
+  // following the finger would drag open an empty box. Gestures start on the
+  // header, which is not a scroll container, so this never fights the list.
+  function handlePointerDown(e: ReactPointerEvent<HTMLButtonElement>) {
+    dragStartY.current = e.clientY;
+    draggedRef.current = false;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e: ReactPointerEvent<HTMLButtonElement>) {
+    const start = dragStartY.current;
+    if (start == null) return;
+    const dy = e.clientY - start;
+    if (Math.abs(dy) < DRAG_THRESHOLD) return;
+    draggedRef.current = true;
+    dragStartY.current = null;
+    setOpen(dy < 0);
+  }
+
+  function handlePointerEnd(e: ReactPointerEvent<HTMLButtonElement>) {
+    dragStartY.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }
+
+  function handleClick() {
+    // The drag already set the state — don't let the trailing click undo it.
+    if (draggedRef.current) {
+      draggedRef.current = false;
+      return;
+    }
+    setOpen((v) => !v);
+  }
 
   return (
     <>
-      {/* Matches the peek bar's height including the home-indicator inset, so
-          the last holding is never trapped underneath it. */}
+      {/* Clears the peek bar so the last holding and the total are never
+          trapped underneath it. 56px min-height + 18px padding + inset. */}
       <div
         aria-hidden
-        style={{ height: "calc(68px + env(safe-area-inset-bottom))" }}
+        style={{ height: "calc(74px + env(safe-area-inset-bottom))" }}
       />
 
       {open && <SheetBackdrop onClose={() => setOpen(false)} />}
@@ -48,10 +95,17 @@ export function AnalyticsSheet({ peek, children }: Props) {
       >
         <button
           type="button"
-          onClick={() => setOpen((v) => !v)}
+          onClick={handleClick}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerEnd}
+          onPointerCancel={handlePointerEnd}
           aria-expanded={open}
           aria-label={open ? "Collapse analytics" : "Expand analytics"}
-          className="flex min-h-[56px] w-full flex-col items-stretch gap-2 px-4 pb-2 pt-2.5"
+          // touch-action: none so a vertical drag here is a sheet gesture
+          // rather than a page scroll.
+          style={{ touchAction: "none" }}
+          className="flex min-h-[56px] w-full cursor-grab flex-col items-stretch gap-2 px-4 pb-2 pt-2.5 active:cursor-grabbing"
         >
           <span
             aria-hidden
@@ -74,7 +128,7 @@ export function AnalyticsSheet({ peek, children }: Props) {
                   role="tab"
                   aria-selected={tab === t.id}
                   onClick={() => setTab(t.id)}
-                  className={`inline-flex min-h-[44px] flex-1 items-center justify-center rounded-md border font-mono text-[11px] font-medium transition-colors ${
+                  className={`inline-flex min-h-[36px] flex-1 items-center justify-center rounded-md border font-mono text-[11px] font-medium transition-colors ${
                     tab === t.id
                       ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
                       : "border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-400"

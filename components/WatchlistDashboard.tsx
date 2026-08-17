@@ -149,7 +149,7 @@ export function WatchlistDashboard() {
                   href="/compare"
                   aria-label="Compare portfolios"
                   title="Compare portfolios"
-                  className={`inline-flex items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 ${isDesktop ? "h-[30px] w-[30px]" : "min-h-[44px] min-w-[44px]"}`}
+                  className={`inline-flex items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 h-[30px] w-[30px]`}
                 >
                   <ScaleIcon />
                 </Link>
@@ -178,11 +178,7 @@ export function WatchlistDashboard() {
           </>
         ) : (
           <>
-            <PortfolioHero
-              tickers={tickers}
-              quotes={quotes}
-              portfolioName={activePortfolioName ?? "Portfolio"}
-            />
+            <PortfolioHero tickers={tickers} quotes={quotes} />
             {overCap && <CapBanner />}
             <HoldingsList
               tickers={tickers}

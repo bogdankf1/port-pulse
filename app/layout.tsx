@@ -52,7 +52,10 @@ export default function RootLayout({
         <Navbar />
         {children}
         <footer
-          className="mt-auto border-t border-slate-200/80 px-4 py-4 dark:border-slate-800/70 sm:px-6"
+          // Hidden below lg: on mobile the analytics sheet is fixed over the
+          // bottom of the viewport, so this credit is never readable there and
+          // only contributes an empty band under the holdings total.
+          className="mt-auto hidden border-t border-slate-200/80 px-4 py-4 lg:block dark:border-slate-800/70 sm:px-6"
           style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom))" }}
         >
           <a

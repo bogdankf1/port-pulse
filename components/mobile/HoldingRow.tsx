@@ -95,7 +95,9 @@ export function HoldingRow({ ticker, quotes, totalValue, onRemove }: Props) {
               )}
             </span>
             <span className="block truncate font-mono text-[11px] text-slate-500 dark:text-slate-400">
-              {ticker.quantity != null ? `${formatQty(ticker.quantity)} sh · ` : ""}
+              {ticker.quantity != null
+                ? `${formatQty(ticker.quantity)} ${ticker.quantity === 1 ? "share" : "shares"} · `
+                : ""}
               {value != null ? `$${formatMoney(value)}` : ticker.name || profile.name || "—"}
             </span>
           </span>
@@ -123,40 +125,88 @@ export function HoldingRow({ ticker, quotes, totalValue, onRemove }: Props) {
           id={panelId}
           className="relative border-t border-slate-200/70 bg-slate-50/80 px-4 py-3 dark:border-slate-800/70 dark:bg-slate-900/50"
         >
+          {/* Qty and % of portfolio deliberately absent — both are already on
+              the collapsed row. Total return joins the grid rather than sitting
+              orphaned underneath it. */}
           <dl className="grid grid-cols-4 gap-2 text-center">
-            <Detail label="Entry" value={ticker.entryPrice != null ? `$${ticker.entryPrice.toFixed(2)}` : "—"} />
-            <Detail label="Qty" value={ticker.quantity != null ? formatQty(ticker.quantity) : "—"} />
-            <Detail label="% port" value={weight != null ? `${weight.toFixed(1)}%` : "—"} />
+            <Detail
+              label="Entry"
+              value={ticker.entryPrice != null ? `$${ticker.entryPrice.toFixed(2)}` : "—"}
+            />
+            <Detail label="Cost" value={cost != null ? `$${formatMoney(cost)}` : "—"} />
             <Detail
               label="Day $"
               value={dayAbs != null ? signed(dayAbs, (v) => `$${formatMoney(v)}`) : "—"}
               tone={dayAbs != null ? plColor(dayAbs) : undefined}
             />
+            <Detail
+              label="Return"
+              value={plPct != null ? signed(plPct, (v) => `${v.toFixed(1)}%`) : "—"}
+              tone={plPct != null ? plColor(plPct) : undefined}
+            />
           </dl>
-          {plPct != null && (
-            <div className="mt-2 text-center font-mono text-[11px] text-slate-500 dark:text-slate-400">
-              Total return {signed(plPct, (v) => `${v.toFixed(2)}%`)}
-            </div>
-          )}
           <div className="mt-3 flex items-center justify-between gap-3">
             <button
               type="button"
               onClick={() => router.push(`/position/${encodeURIComponent(ticker.symbol)}`)}
-              className="inline-flex min-h-[44px] items-center font-mono text-[11px] font-medium text-slate-700 underline-offset-4 hover:underline dark:text-slate-300"
+              aria-label={`Open ${ticker.symbol} position`}
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-slate-600 transition-colors hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
             >
-              Open position →
+              <OpenIcon />
             </button>
             <button
               type="button"
               onClick={onRemove}
-              className="inline-flex min-h-[44px] items-center font-mono text-[11px] font-medium text-red-600 dark:text-red-400"
+              aria-label={`Remove ${ticker.symbol}`}
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-red-600 transition-colors hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
             >
-              Remove
+              <TrashIcon />
             </button>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function OpenIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M14 4h6v6" />
+      <path d="M20 4l-8 8" />
+      <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M4 7h16" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M6 7l1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12" />
+      <path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
   );
 }
 
