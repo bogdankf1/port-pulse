@@ -13,8 +13,8 @@
 
 Items 1–5 form one coherent theme: **evolve the one-shot "Insights" analysis into a
 full conversational, memory-backed portfolio assistant on its own page.** Item 6 is the
-guiding constraint. Item 7 was descoped (moved to a separate project). Items 8–9 are
-unrelated load-state fixes.
+guiding constraint. Item 7 was descoped (moved to a separate project). Items 8–9 and 17
+are unrelated first-impression fixes — the load sequence and input focus behaviour.
 
 ---
 
@@ -287,6 +287,43 @@ premium from the first frame and the layout doesn't jump when content arrives.
 **Open questions:**
 - Full skeleton of every panel, or a lighter branded loader? (Skeleton is more premium and
   prevents layout shift.)
+
+---
+
+### 17. 🐛 Bug — iOS Safari zooms the page when an input is focused
+
+**Idea (raw):** When I tap Add ticker (and probably other inputs) the UI zooms in a bit.
+It looks like default behaviour — get rid of it.
+
+**Refined:** iOS Safari **auto-zooms on focus whenever the focused field's computed
+`font-size` is under 16px**. It then leaves the page zoomed after blur, so the whole layout
+stays shifted. It is default behaviour, and it is entirely avoidable — 16px is the trigger,
+not something Safari decides.
+
+**Root cause (confirmed):** every text input in the app is `text-sm` = **14px**.
+
+| Input | File | Type |
+|---|---|---|
+| Ticker search | `components/AddTickerModal.tsx:135` | `text` |
+| Quantity / entry price | `components/AddTickerModal.tsx:309` | `number` — zooms too |
+| Portfolio name | `components/PortfolioModal.tsx:124` | `text` |
+
+`components/Uploader.tsx:172` is a hidden `type="file"` and is **not** affected.
+
+**What's needed:**
+- Raise the focused font-size to **≥16px at mobile widths**: `text-base lg:text-sm`, so
+  desktop keeps its density. That is the whole fix.
+- **Do not reach for `maximum-scale=1` / `user-scalable=no`** on the viewport. It suppresses
+  the zoom by **disabling pinch-zoom entirely** — a WCAG 1.4.4 failure, and precisely the
+  kind of fix that makes the app worse for anyone who needs to magnify it. The `viewport`
+  export in `app/layout.tsx` is deliberately free of it; keep it that way.
+- Treat 16px as a standing rule for any future input, not a one-off patch.
+
+**Affected areas:** `components/AddTickerModal.tsx`, `components/PortfolioModal.tsx`.
+
+**Open questions:**
+- Does 16px read as intentional in the modals, or does the surrounding label/spacing scale
+  need a nudge so the input doesn't just look oversized?
 
 ---
 
