@@ -50,7 +50,7 @@ npm run dev              # dev server on :3000
 These were checked while writing the spec. They shape the code below.
 
 1. **`client.beta.messages.toolRunner` exists** in the installed `@anthropic-ai/sdk` 0.95.1 (`resources/beta/messages/messages.d.ts`), and `helpers/beta/zod` ships with it. `zod ^4.4.3` is already a dependency.
-2. **`betaZodTool({ name, inputSchema, description, run })`** takes a `ZodType` and its `run` returns `string | BetaToolResultContentBlockParam[]`.
+2. **`betaZodTool` cannot be used here — do not try.** It builds `input_schema` via `z.toJSONSchema(schema, { reused: 'ref' })` with no `io` override, so zod defaults to `"output"` mode and **throws `"Transforms cannot be represented in JSON Schema"`** on any schema containing a `.transform()`. `getPositionSchema` and `getPriceHistorySchema` both transform `symbol`, so `assistantTools()` would throw before returning. Verified against the installed helper and reproduced directly; not a version fluke. Task 4 therefore ships a local `zodTool()` that mirrors `betaZodTool`'s exact returned shape (`{ type: 'custom', name, input_schema, description, run, parse }`) but generates the schema with `{ io: "input" }` — which is the semantically correct thing for a tool input schema anyway, since it describes what the model must send rather than what parsing produces. `.parse()` still runs the original schema, transform and refine included.
 3. **`toolRunner({ ..., stream: true })` returns `BetaToolRunner<true>`**, which is async-iterable yielding one `BetaMessageStream` per model turn (`lib/tools/BetaToolRunner.d.ts:17`), plus `.done()` for the final message. Each `BetaMessageStream` is itself async-iterable over `BetaMessageStreamEvent` and exposes `finalMessage()` (`lib/BetaMessageStream.d.ts:109,119`).
 4. **`StopReason` includes `'refusal'`** (`resources/messages/messages.d.ts:962`), so the refusal check in Task 7 is a typed comparison, not a string guess.
 5. **`lib/mcp/tools.ts` already exports `z.object(...)` schemas** for all six tools: `listPortfoliosSchema`, `getPortfolioSchema`, `getPositionSchema`, `getPriceHistorySchema`, `getRiskMetricsSchema`, `getSectorBreakdownSchema`. Pass them straight to `betaZodTool`.
@@ -459,6 +459,24 @@ git commit -m "feat(assistant): SSE event protocol with a chunk-safe decoder"
 ---
 
 ## Task 4: The tool layer
+
+> **AMENDED DURING EXECUTION — the code below is superseded.** The `betaZodTool`
+> version in Step 3 **throws at runtime** for the reason in verified-fact #2
+> above. The shipped implementation (commits `df5fbc4` + `b8c9483`) uses a local
+> `zodTool()` instead. Two further defects were found and fixed on top of it:
+>
+> 1. Its `input_schema.type` stayed a wide union rather than the literal
+>    `"object"` that `BetaTool.InputSchema` requires, so the whole tool array was
+>    **unassignable to `toolRunner`'s `tools`** — invisible to every runtime test,
+>    and it would only have surfaced at Task 7's call site. Fixed by narrowing
+>    after the runtime guard, and pinned by a compile-time assertion in
+>    `tools.test.ts` (mutation-checked: reverting the narrowing yields exactly one
+>    error, at the guard).
+> 2. `reused: "ref"` hoisted `symbol` into a single-use `$defs` entry containing
+>    nothing but `{"type":"string"}` — request tokens for no benefit. Dropped.
+>
+> Read `lib/assistant/tools.ts` for the real implementation. Keep Step 1's tests;
+> they all still apply.
 
 **Files:**
 - Create: `lib/assistant/tools.ts`
@@ -1257,19 +1275,29 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createServerSupabase();
-  // getUser() validates the JWT; getSession() only reads cookies, so it alone
-  // would not be authentication.
+  // `getUser()` validates the JWT against Supabase and is the authentication
+  // step. `getSession()` only reads cookies, so on its own it authenticates
+  // nothing — it is called purely for `access_token`.
+  //
+  // The order matters and is not interchangeable: `getUser()` first means an
+  // expired token has already been refreshed by the time `getSession()` reads
+  // it, so the token handed to the tools is the fresh one. Reversing these two
+  // calls can hand the MCP layer a token that is about to expire mid-turn.
+  //
+  // No other route in this codebase calls `getSession()` — this is the first,
+  // because it is the only place that needs the raw token rather than just the
+  // identity.
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const {
     data: { session },
   } = await supabase.auth.getSession();
   if (!session?.access_token) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   if (inFlight.has(user.id)) {
@@ -1371,7 +1399,7 @@ curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/api/assistant \
   -H 'content-type: application/json' -d '{"message":"hi"}'
 ```
 
-Expected: `401`.
+Expected: `401`. (`{ error: "Unauthorized" }` matches `app/api/watchlist/route.ts`; the client maps the status itself, so this body text is only ever seen by curl.)
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' localhost:3000/api/assistant \
@@ -1864,11 +1892,32 @@ In `components/WatchlistDashboard.tsx` — verified line numbers on `main`, and 
 | 44 | Delete `import { InsightsDrawer } from "./InsightsDrawer";` |
 | 51 | Delete `import { InsightsTab } from "./mobile/sheet/InsightsTab";` |
 | 93 | Delete `const [insightsOpen, setInsightsOpen] = useState(false);` |
-| ~151 | The desktop Insights `<button onClick={() => setInsightsOpen(true)}>` wrapping `<SparkIcon />` → a `<Link href="/assistant">`, keeping the same classes, `aria-label` and `SparkIcon` |
-| ~211 | `<InsightsTab …/>` → the link card below |
-| ~234 | Delete the `<InsightsDrawer open={insightsOpen} …/>` element |
+| 144–154 | The desktop Insights button → a `<Link>`. Exact replacement below |
+| 211–215 | `<InsightsTab …/>` → the link card below. It is the final `else` of the sheet's 4-way tab ternary (lines 203–217) |
+| 234–240 | Delete the whole `<InsightsDrawer open={insightsOpen} …/>` element |
+
+**Do not remove `activeId` (line 85).** Deleting lines 214 and 240 removes two of its four usages, but line 123 still derives `activePortfolioName` from it. Likewise `activePortfolioName` keeps two usages (its own definition and `AddTickerModal` at line 232). Neither becomes orphaned — verified before this plan was written.
 
 `SparkIcon` is a local function in this same file (line 321) and **stays** — the new `Link` uses it. If removing `insightsOpen` leaves `useState` unused, drop it from the React import; if other state still uses it, leave it.
+
+The lines 144–154 replacement. Note what is preserved: the `isDesktop &&` guard, every class, the `hidden sm:inline` label span. Only the element type, the destination, and the wording change — the button became navigation, and it no longer opens "insights", it opens a conversation:
+
+```tsx
+              {/* Below lg the AI sheet tab links here instead. */}
+              {isDesktop && (
+                <Link
+                  href="/assistant"
+                  aria-label="Portfolio assistant"
+                  title="Portfolio assistant"
+                  className="inline-flex h-[30px] items-center justify-center gap-1.5 rounded-md border border-slate-300 px-2 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 sm:px-2.5"
+                >
+                  <SparkIcon />
+                  <span className="hidden sm:inline">Assistant</span>
+                </Link>
+              )}
+```
+
+This lands immediately above the existing `/compare` `<Link>` (lines 155–164), which is the same `h-[30px]` shape — use it as the reference if anything looks off.
 - In the analytics sheet's tab switch, replace `<InsightsTab …/>` with a link card to `/assistant` — the sheet is a modal, and item 2's whole point is that the assistant is not one:
 
 ```tsx
