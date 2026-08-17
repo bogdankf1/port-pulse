@@ -148,3 +148,11 @@ body {
     }
   }
 }
+
+/* Skeleton shimmer. The loading state still reads as loading without it —
+   aria-busy plus the placeholder shapes carry the meaning. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none;
+  }
+}

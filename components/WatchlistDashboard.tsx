@@ -2,8 +2,13 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
+  DesktopDashboardSkeleton,
+  MobileDashboardSkeleton,
+} from "./DashboardSkeleton";
+import {
   getWatchlist,
   getWatchlistServerSnapshot,
+  isWatchlistLoading,
   removeFromWatchlist,
   subscribeWatchlist,
 } from "@/lib/storage";
@@ -109,7 +114,10 @@ export function WatchlistDashboard() {
 
   const overCap = tickers.length > SOFT_CAP;
   const showSelector = isLoggedIn && portfolios.length > 0;
-  const portfolioReady = !isLoggedIn || activeId != null;
+  // Read during render rather than via useSyncExternalStore: every input this
+  // depends on (auth readiness, active portfolio, the watchlist) has its own
+  // store and is already subscribed above, so any transition re-renders us.
+  const watchlistLoading = isWatchlistLoading();
   const activePortfolioName = useMemo(() => {
     if (!isLoggedIn) return undefined;
     return portfolios.find((p) => p.id === activeId)?.name;
@@ -149,7 +157,7 @@ export function WatchlistDashboard() {
                   href="/compare"
                   aria-label="Compare portfolios"
                   title="Compare portfolios"
-                  className={`inline-flex items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 h-[30px] w-[30px]`}
+                  className="inline-flex items-center justify-center rounded-md border border-slate-300 text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 h-[30px] w-[30px]"
                 >
                   <ScaleIcon />
                 </Link>
@@ -162,7 +170,13 @@ export function WatchlistDashboard() {
 
       {isDesktop && overCap && <CapBanner />}
 
-      {tickers.length > 0 ? (
+      {watchlistLoading ? (
+        isDesktop ? (
+          <DesktopDashboardSkeleton />
+        ) : (
+          <MobileDashboardSkeleton />
+        )
+      ) : tickers.length > 0 ? (
         isDesktop ? (
           <>
             <SectorBreakdown tickers={tickers} />
@@ -205,10 +219,7 @@ export function WatchlistDashboard() {
           </>
         )
       ) : (
-        <EmptyPortfolio
-          ready={portfolioReady}
-          onAddTicker={() => setAddOpen(true)}
-        />
+        <EmptyPortfolio onAddTicker={() => setAddOpen(true)} />
       )}
 
       <UploaderModal
@@ -240,22 +251,10 @@ function CapBanner() {
   );
 }
 
-function EmptyPortfolio({
-  ready,
-  onAddTicker,
-}: {
-  ready: boolean;
-  onAddTicker: () => void;
-}) {
-  if (!ready) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white/40 px-6 py-16 text-center dark:border-slate-800/70 dark:bg-slate-900/40">
-        <div className="font-mono text-xs uppercase tracking-widest text-slate-400 dark:text-slate-600">
-          Loading portfolio…
-        </div>
-      </div>
-    );
-  }
+// Only ever rendered once loading has genuinely finished — the caller gates on
+// isWatchlistLoading(). It no longer carries a loading branch of its own, which
+// is what used to let "This portfolio is empty" show for a frame mid-load.
+function EmptyPortfolio({ onAddTicker }: { onAddTicker: () => void }) {
   return (
     <div className="flex flex-col items-center gap-5 py-6">
       <div className="text-center">

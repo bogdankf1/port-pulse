@@ -3,6 +3,7 @@ import { getUser, isAuthReady, subscribeUser } from "./auth";
 import { isSupabaseConfigured } from "./supabase";
 import {
   getActivePortfolioId,
+  isPortfoliosLoading,
   subscribeActivePortfolio,
 } from "./portfolios";
 
@@ -15,6 +16,19 @@ let lastUserId: string | null = null;
 let lastPortfolioId: string | null = null;
 let migrating = false;
 let fetchSeq = 0;
+/**
+ * `${userId}:${portfolioId}` for which a remote fetch has actually **completed**.
+ *
+ * Distinct from `lastUserId`/`lastPortfolioId`, which are set optimistically
+ * *before* the await and therefore only record intent. Without this, a caller
+ * cannot tell "this portfolio is empty" from "this portfolio hasn't loaded yet"
+ * — which is what made the dashboard flash its empty state on every load.
+ */
+let loadedKey: string | null = null;
+
+function loadKey(userId: string, portfolioId: string): string {
+  return `${userId}:${portfolioId}`;
+}
 
 function emit(): void {
   for (const sub of subscribers) sub();
@@ -119,6 +133,7 @@ async function reload(): Promise<void> {
       // Just signed out — clear cached state.
       lastUserId = null;
       lastPortfolioId = null;
+      loadedKey = null;
       cached = EMPTY;
       emit();
     }
@@ -154,6 +169,7 @@ async function reload(): Promise<void> {
     }
 
     cached = merged;
+    loadedKey = loadKey(userId, portfolioId);
     emit();
   } finally {
     migrating = false;
@@ -186,6 +202,40 @@ export function getWatchlist(): Ticker[] {
 
 export function getWatchlistServerSnapshot(): Ticker[] {
   return EMPTY;
+}
+
+/**
+ * True while the holdings for the current portfolio are still being resolved.
+ *
+ * Read this before showing an empty state: `getWatchlist()` returns `EMPTY`
+ * both while loading and when the portfolio genuinely has no holdings, and
+ * treating those the same is what produced the loading → empty → content flash.
+ *
+ * Every input this reads (auth readiness, the active portfolio, the watchlist
+ * itself) has its own store, and the dashboard already subscribes to all of
+ * them — so a plain read during render re-evaluates on any transition.
+ */
+export function isWatchlistLoading(): boolean {
+  ensureInit();
+  if (typeof window === "undefined") return false;
+  // No Supabase means guest-only: there is nothing remote to wait for.
+  if (!isSupabaseConfigured()) return false;
+  // We don't yet know whether anyone is signed in.
+  if (!isAuthReady()) return true;
+  const userId = getUser()?.id ?? null;
+  // Signed out is terminal — storage is in-memory, so EMPTY is the final answer.
+  if (!userId) return false;
+  const portfolioId = getActivePortfolioId();
+  if (!portfolioId) {
+    // No active portfolio. That is "still loading" only while the portfolio
+    // list is in flight. `lib/portfolios.ts` sets `activeId: list[0]?.id ?? null`
+    // with `loading: false`, so a signed-in user with zero portfolios — or one
+    // whose portfolios fetch failed — legitimately never gets an id, and must
+    // not be stranded on a skeleton forever. That would be worse than the flash
+    // this function exists to remove.
+    return isPortfoliosLoading();
+  }
+  return loadedKey !== loadKey(userId, portfolioId);
 }
 
 export function subscribeWatchlist(cb: () => void): () => void {
