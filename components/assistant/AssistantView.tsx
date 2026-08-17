@@ -231,7 +231,7 @@ export function AssistantView() {
       <div className="flex-1 overflow-y-auto px-4 py-6">
         {empty ? (
           <div className="mx-auto max-w-md pt-10">
-            <h1 className="font-mono text-sm uppercase tracking-widest text-slate-500">
+            <h1 className="font-mono text-sm uppercase tracking-widest text-slate-600 dark:text-slate-400">
               Assistant
             </h1>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">

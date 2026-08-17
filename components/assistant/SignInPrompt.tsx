@@ -8,7 +8,7 @@ export function SignInPrompt() {
       <h1 className="font-mono text-sm font-medium text-slate-800 dark:text-slate-200">
         Sign in to use the assistant
       </h1>
-      <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+      <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-400">
         The assistant reads your saved portfolios to answer questions about
         them, so it needs an account. It only ever reads — it can&apos;t place
         trades or change anything.

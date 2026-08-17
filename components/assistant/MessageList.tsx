@@ -33,7 +33,7 @@ export function MessageList({ messages, streaming, runningTool }: Props) {
       {runningTool && (
         <div
           role="status"
-          className="font-mono text-[11px] uppercase tracking-widest text-slate-500"
+          className="font-mono text-[11px] uppercase tracking-widest text-slate-600 dark:text-slate-400"
         >
           {TOOL_LABELS[runningTool] ?? runningTool}…
         </div>
