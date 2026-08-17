@@ -517,6 +517,39 @@ possibly `components/mobile/PortfolioHero.tsx`.
 
 ---
 
+### 18. 🐛 Bug — `/position/[symbol]` stalls forever on a direct load
+
+**Idea (raw):** Found during the assistant branch's verification sweep. Pre-existing —
+neither file appears in that branch's diff.
+
+**Refined:** Browsing straight to `/position/NVDA` (or refreshing it) while signed in
+leaves the holdings card on "Loading holdings…" indefinitely. No request to
+`/api/positions/NVDA` is ever made. Reaching the same page by client-side navigation
+(dashboard → click a row) works fine, which is why it has gone unnoticed — but a refresh
+or a shared link hits it every time.
+
+**Root cause:** `components/position/PositionHoldings.tsx:70-76` reads `isAuthReady()`
+imperatively inside the fetch effect, while the effect's deps are `[symbol, isLoggedIn]`.
+In `lib/auth.ts`, `onAuthStateChange` emits the user (INITIAL_SESSION) while
+`initialFetchDone` is still `false`, so the effect runs with `isLoggedIn === true` and
+bails at the `isAuthReady()` guard. When `getUser()` later resolves and flips
+`initialFetchDone` to `true`, `isLoggedIn` has not changed — so the effect never re-runs
+and nothing retries.
+
+**What's needed:** make auth-readiness a *subscribed* value rather than an imperative
+read, so the transition re-renders. `components/assistant/AssistantView.tsx` does this
+correctly with `useSyncExternalStore(subscribeUser, isAuthReady, () => false)` — the same
+shape works here. Note the trap: a plain `isAuthReady()` call in render does **not**
+suffice, because for an unchanged snapshot `useSyncExternalStore` will not re-render.
+
+**Affected areas:** `components/position/PositionHoldings.tsx`. Audit for the same pattern
+elsewhere — this is the third instance of loading-mistaken-for-terminal in this codebase
+(see [[8]] and Item 9).
+
+**Open questions:** none — root cause is confirmed by network trace and code reading.
+
+---
+
 ## Parking lot / to revisit
 - Finalize the full list of 15 starter prompts (Item 3).
 - Research Freedom Finance API availability (Item 5) — treat as **likely blocked** rather
