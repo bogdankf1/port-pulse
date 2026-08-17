@@ -79,10 +79,12 @@ export function AnalyticsSheet({ peek, children }: Props) {
   return (
     <>
       {/* Clears the peek bar so the last holding and the total are never
-          trapped underneath it. 56px min-height + 18px padding + inset. */}
+          trapped underneath it. The collapsed bar measures 57px — min-h-[56px]
+          is border-box, so its padding is already inside that, plus the 1px
+          border-top — and the inset must be added because the bar pads by it. */}
       <div
         aria-hidden
-        style={{ height: "calc(74px + env(safe-area-inset-bottom))" }}
+        style={{ height: "calc(60px + env(safe-area-inset-bottom))" }}
       />
 
       {open && <SheetBackdrop onClose={() => setOpen(false)} />}
