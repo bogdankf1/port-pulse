@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import {
   getUser,
   getUserServerSnapshot,
@@ -63,6 +69,37 @@ export function AssistantView() {
   const [busy, setBusy] = useState(false);
   const conversationId = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const listRes = await fetch("/api/assistant/conversations");
+        if (!listRes.ok) return;
+        const { conversations } = (await listRes.json()) as {
+          conversations: { id: string }[];
+        };
+        const latest = conversations[0];
+        if (!latest || cancelled) return;
+        const msgRes = await fetch(
+          `/api/assistant/conversations?id=${encodeURIComponent(latest.id)}`,
+        );
+        if (!msgRes.ok || cancelled) return;
+        const { messages: loaded } = (await msgRes.json()) as {
+          messages: AssistantMessage[];
+        };
+        if (cancelled) return;
+        conversationId.current = latest.id;
+        setMessages(loaded);
+      } catch {
+        // A failed restore leaves an empty chat, which is usable.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const activePortfolioName =
     portfolios.find((p) => p.id === activeId)?.name ?? null;
