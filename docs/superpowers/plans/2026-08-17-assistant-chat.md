@@ -1438,6 +1438,48 @@ git commit -m "feat(assistant): authenticated SSE endpoint"
 - Create: `components/assistant/Composer.tsx`
 - Create: `components/assistant/SuggestionChips.tsx`
 - Create: `components/assistant/SignInPrompt.tsx`
+- Modify: `lib/assistant/prompts.ts` + `lib/assistant/prompts.test.ts` (Step 0)
+
+- [ ] **Step 0: Stop the model emitting markdown**
+
+`MessageList` renders assistant text with `whitespace-pre-wrap` — no markdown
+parser. The project has no markdown dependency and adding one would break the
+"no external UI component libraries, custom components only" rule for something
+the prompt can prevent outright. So constrain the output instead of parsing it.
+
+Add this to the `Style.` block returned by `buildSystemPrompt` in
+`lib/assistant/prompts.ts`:
+
+```ts
+    "Write plain prose — the interface renders your text as-is and does not",
+    "interpret markdown, so asterisks, underscores and hash headings would show",
+    "up literally. For a list, use short lines each beginning with a hyphen.",
+```
+
+And pin it in `lib/assistant/prompts.test.ts`, inside the existing
+`describe("buildSystemPrompt", …)`:
+
+```ts
+  it("tells the model not to emit markdown", () => {
+    // MessageList has no markdown parser, so `**bold**` would render literally.
+    // This instruction is the only thing preventing that.
+    expect(buildSystemPrompt({ activePortfolioName: "Main" })).toMatch(
+      /plain prose|markdown/i,
+    );
+  });
+```
+
+Run `npm test -- lib/assistant/prompts.test.ts` → 10 tests pass. Commit this
+separately before starting the UI:
+
+```
+feat(assistant): keep model output free of markdown
+
+MessageList renders text as-is with no parser, so unrendered ** and #
+would leak into the transcript. Constraining the prompt is cheaper and
+smaller than adding a markdown dependency this project deliberately
+does not have.
+```
 
 Design direction: Claude's chat layout, Port Pulse's skin. Dark-first, monospace for data, no generic template look. Follow `CLAUDE.md`'s design direction.
 
@@ -1445,18 +1487,24 @@ Design direction: Claude's chat layout, Port Pulse's skin. Dark-first, monospace
 
 Create `app/assistant/page.tsx`:
 
+Matching `app/compare/page.tsx` exactly — a plain metadata object with no `Metadata`
+type import, and an **em dash** separator, not a middle dot:
+
 ```tsx
-import type { Metadata } from "next";
 import { AssistantView } from "@/components/assistant/AssistantView";
 
-export const metadata: Metadata = {
-  title: "Assistant · Port Pulse",
+export const metadata = {
+  title: "Assistant — Port Pulse",
 };
 
 export default function AssistantPage() {
   return <AssistantView />;
 }
 ```
+
+(The view lives under `components/assistant/` rather than colocated as
+`app/compare/CompareView.tsx` does, because it mirrors `components/insights/` —
+the surface it replaces — and because there are six files, not one.)
 
 - [ ] **Step 2: Suggestion chips**
 
