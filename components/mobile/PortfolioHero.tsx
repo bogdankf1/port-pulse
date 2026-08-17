@@ -12,10 +12,9 @@ const RANGES: PortfolioHistoryRange[] = ["1D", "1M", "3M", "YTD", "1Y"];
 type Props = {
   tickers: Ticker[];
   quotes: Quotes;
-  portfolioName: string;
 };
 
-export function PortfolioHero({ tickers, quotes, portfolioName }: Props) {
+export function PortfolioHero({ tickers, quotes }: Props) {
   const [range, setRange] = useState<PortfolioHistoryRange>("1M");
   const history = usePortfolioHistory(tickers, range);
   const totals = useMemo(() => computeTotals(tickers, quotes), [tickers, quotes]);
@@ -35,10 +34,8 @@ export function PortfolioHero({ tickers, quotes, portfolioName }: Props) {
 
   return (
     <section className="px-4 pb-3 pt-1">
-      <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
-        {portfolioName}
-      </div>
-      <div className="mt-0.5 font-mono text-[28px] font-bold leading-none tracking-tight tabular-nums text-slate-900 dark:text-slate-100">
+      {/* No portfolio name here — the selector directly above already shows it. */}
+      <div className="font-mono text-[28px] font-bold leading-none tracking-tight tabular-nums text-slate-900 dark:text-slate-100">
         {totals.hasAnyValue ? `$${formatMoney(totals.marketValue)}` : "—"}
       </div>
 
@@ -105,7 +102,7 @@ export function PortfolioHero({ tickers, quotes, portfolioName }: Props) {
             type="button"
             aria-pressed={range === r}
             onClick={() => setRange(r)}
-            className={`inline-flex min-h-[44px] flex-1 items-center justify-center rounded-md border font-mono text-[11px] font-medium transition-colors ${
+            className={`inline-flex min-h-[34px] flex-1 items-center justify-center rounded-md border font-mono text-[11px] font-medium transition-colors ${
               range === r
                 ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
                 : "border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-400"
