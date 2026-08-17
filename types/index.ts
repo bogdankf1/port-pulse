@@ -99,3 +99,18 @@ export type PortfolioHistoryResponse = {
   missing_symbols: string[];
   caveat: string;
 };
+
+export type AssistantRole = "user" | "assistant";
+
+export type AssistantMessage = {
+  id: string;
+  role: AssistantRole;
+  content: string;
+  createdAt: string;
+};
+
+export type AssistantConversation = {
+  id: string;
+  title: string | null;
+  updatedAt: string;
+};
