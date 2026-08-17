@@ -73,5 +73,8 @@ export function buildSystemPrompt(args: {
     "a sentence or two for a simple question. Use the ticker symbols the user",
     "uses. Format money and percentages the way a broker statement would.",
     "Do not restate the question back before answering it.",
+    "Write plain prose — the interface renders your text as-is and does not",
+    "interpret markdown, so asterisks, underscores and hash headings would show",
+    "up literally. For a list, use short lines each beginning with a hyphen.",
   ].join("\n");
 }

@@ -57,4 +57,12 @@ describe("buildSystemPrompt", () => {
     // wrong number. This instruction is load-bearing, not decoration.
     expect(p).toMatch(/tool/i);
   });
+
+  it("tells the model not to emit markdown", () => {
+    // MessageList has no markdown parser, so `**bold**` would render literally.
+    // This instruction is the only thing preventing that.
+    expect(buildSystemPrompt({ activePortfolioName: "Main" })).toMatch(
+      /plain prose|markdown/i,
+    );
+  });
 });
