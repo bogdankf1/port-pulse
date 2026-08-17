@@ -69,19 +69,29 @@ function zodTool<InputSchema extends ZodType>(options: {
   inputSchema: InputSchema;
   run: (args: z.infer<InputSchema>) => Promise<string>;
 }) {
-  const jsonSchema = z.toJSONSchema(options.inputSchema, {
-    io: "input",
-    reused: "ref",
-  });
+  // `reused: "ref"` (which `betaZodTool` passes) is deliberately omitted. Under
+  // `io: "input"` it hoists the transformed `symbol` into a single-use
+  // `$defs/__schema0` holding nothing but `{"type":"string"}` — an indirection
+  // that costs tokens on every request and buys nothing for schemas this flat.
+  // The default inlines it. None of the six schemas is recursive, which is the
+  // only case where the ref form would be required.
+  const jsonSchema = z.toJSONSchema(options.inputSchema, { io: "input" });
   if (jsonSchema.type !== "object") {
     throw new Error(
       `Zod schema for tool "${options.name}" must be an object, but got ${jsonSchema.type}`,
     );
   }
+  // TypeScript does not narrow `jsonSchema.type` from the check above — it stays
+  // the wide `"string" | "object" | … | undefined` union — while the SDK's
+  // `BetaTool.InputSchema` requires the literal `"object"`. Without this the
+  // whole tool array is unassignable to `toolRunner`'s `tools` parameter. The
+  // SDK's own `betaZodTool` asserts at the same spot for the same reason.
+  // Scoped to the single field the runtime check immediately above just proved.
+  const inputSchema = jsonSchema as typeof jsonSchema & { type: "object" };
   return {
     type: "custom" as const,
     name: options.name,
-    input_schema: jsonSchema,
+    input_schema: inputSchema,
     description: options.description,
     run: options.run,
     parse: (args: unknown) => options.inputSchema.parse(args),

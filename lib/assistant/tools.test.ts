@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type Anthropic from "@anthropic-ai/sdk";
 
 vi.mock("server-only", () => ({}));
 
@@ -14,7 +15,26 @@ const CTX = {
   scopes: [] as string[],
 };
 
+/** The `tools` parameter of the overload `lib/assistant/loop.ts` actually calls. */
+type ToolRunnerTools = Parameters<
+  Anthropic["beta"]["messages"]["toolRunner"]
+>[0]["tools"];
+
 describe("assistantTools", () => {
+  it("stays assignable to toolRunner's tools parameter", () => {
+    // This is a COMPILE-time guard wearing a runtime test's clothes. The
+    // annotation is the assertion; the expect() below is incidental.
+    //
+    // It exists because this broke once and nothing caught it: the local
+    // zodTool's `input_schema.type` widened away from the literal "object" that
+    // `BetaTool.InputSchema` demands, so the whole array was unassignable. No
+    // runtime test can see that, and the only real call site is in loop.ts —
+    // so the error surfaced far from its cause. Keep this next to the code it
+    // constrains.
+    const tools: ToolRunnerTools = assistantTools(CTX);
+    expect(tools).toHaveLength(6);
+  });
+
   it("exposes exactly the six read-only MCP tools", () => {
     const names = assistantTools(CTX).map((t) => t.name).sort();
     expect(names).toEqual([
