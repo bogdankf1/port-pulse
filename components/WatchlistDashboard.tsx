@@ -41,14 +41,12 @@ import { Uploader } from "./Uploader";
 import { UploaderModal } from "./UploaderModal";
 import { AddTickerModal } from "./AddTickerModal";
 import { AddMenu } from "./AddMenu";
-import { InsightsDrawer } from "./InsightsDrawer";
 import { HoldingsList } from "./mobile/HoldingsList";
 import { PortfolioHero } from "./mobile/PortfolioHero";
 import { AnalyticsSheet } from "./mobile/AnalyticsSheet";
 import { MixTab } from "./mobile/sheet/MixTab";
 import { RiskTab } from "./mobile/sheet/RiskTab";
 import { HeatmapTab } from "./mobile/sheet/HeatmapTab";
-import { InsightsTab } from "./mobile/sheet/InsightsTab";
 import type { Ticker } from "@/types";
 
 type ViewMode = "table" | "heatmap";
@@ -90,7 +88,6 @@ export function WatchlistDashboard() {
 
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  const [insightsOpen, setInsightsOpen] = useState(false);
   const [view, setView] = useState<ViewMode>("table");
 
   useEffect(() => {
@@ -140,17 +137,17 @@ export function WatchlistDashboard() {
                 onAddTicker={() => setAddOpen(true)}
                 onAddScreenshot={() => setUploaderOpen(true)}
               />
-              {/* Below lg the AI sheet tab replaces this. */}
+              {/* Below lg the AI sheet tab links here instead. */}
               {isDesktop && (
-                <button
-                  onClick={() => setInsightsOpen(true)}
-                  aria-label="AI insights"
-                  title="AI insights"
+                <Link
+                  href="/assistant"
+                  aria-label="Portfolio assistant"
+                  title="Portfolio assistant"
                   className="inline-flex h-[30px] items-center justify-center gap-1.5 rounded-md border border-slate-300 px-2 text-xs font-medium text-slate-700 transition-colors hover:border-slate-400 hover:text-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:border-slate-500 dark:hover:text-slate-100 sm:px-2.5"
                 >
                   <SparkIcon />
-                  <span className="hidden sm:inline">Insights</span>
-                </button>
+                  <span className="hidden sm:inline">Assistant</span>
+                </Link>
               )}
               {isLoggedIn && (
                 <Link
@@ -208,11 +205,17 @@ export function WatchlistDashboard() {
                 ) : tab === "heatmap" ? (
                   <HeatmapTab tickers={tickers} />
                 ) : (
-                  <InsightsTab
-                    tickers={tickers}
-                    portfolioName={activePortfolioName ?? "Portfolio"}
-                    portfolioId={activeId ?? null}
-                  />
+                  <div className="py-6 text-center">
+                    <Link
+                      href="/assistant"
+                      className="inline-flex min-h-[44px] items-center rounded-md border border-slate-300 px-4 font-mono text-[11px] font-medium text-slate-700 dark:border-slate-700 dark:text-slate-300"
+                    >
+                      Open the assistant →
+                    </Link>
+                    <p className="mt-3 font-mono text-[10px] text-slate-500">
+                      Ask follow-up questions about this portfolio.
+                    </p>
+                  </div>
                 )
               }
             </AnalyticsSheet>
@@ -230,13 +233,6 @@ export function WatchlistDashboard() {
         open={addOpen}
         onClose={() => setAddOpen(false)}
         activePortfolioName={activePortfolioName}
-      />
-      <InsightsDrawer
-        open={insightsOpen}
-        onClose={() => setInsightsOpen(false)}
-        tickers={tickers}
-        portfolioName={activePortfolioName ?? "Portfolio"}
-        portfolioId={activeId ?? null}
       />
     </main>
   );

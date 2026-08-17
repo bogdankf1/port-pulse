@@ -74,21 +74,6 @@ export type SectorSlice = {
   symbols: string[];
 };
 
-export type InsightsResponse = {
-  concentration_risk: string | null;
-  sector_tilt: string | null;
-  winners: string | null;
-  losers: string | null;
-  suggestion: string | null;
-};
-
-export type InsightsSectionKey =
-  | "concentration_risk"
-  | "sector_tilt"
-  | "winners"
-  | "losers"
-  | "suggestion";
-
 export type PortfolioHistoryRange = "1D" | "1M" | "3M" | "YTD" | "1Y";
 
 export type PortfolioHistoryResponse = {
@@ -98,4 +83,19 @@ export type PortfolioHistoryResponse = {
   endValue: number | null;
   missing_symbols: string[];
   caveat: string;
+};
+
+export type AssistantRole = "user" | "assistant";
+
+export type AssistantMessage = {
+  id: string;
+  role: AssistantRole;
+  content: string;
+  createdAt: string;
+};
+
+export type AssistantConversation = {
+  id: string;
+  title: string | null;
+  updatedAt: string;
 };
