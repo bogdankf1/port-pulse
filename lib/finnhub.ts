@@ -223,13 +223,6 @@ export function useFinnhubPrices(symbols: string[]): ConnectionState {
   );
 }
 
-export function useConnectionState(): ConnectionState {
-  return useSyncExternalStore(
-    subscribeConn,
-    () => connState,
-    () => "idle" as ConnectionState,
-  );
-}
 
 export function usePrice(symbol: string): PriceState | undefined {
   return useSyncExternalStore(

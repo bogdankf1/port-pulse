@@ -2,6 +2,7 @@
 export type AssistantEvent =
   | { kind: "text"; delta: string }
   | { kind: "tool"; name: string; status: "running" | "done" }
+  | { kind: "followups"; questions: string[] }
   | { kind: "done"; conversationId: string; messageId: string }
   | { kind: "error"; message: string };
 

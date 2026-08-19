@@ -58,11 +58,42 @@ describe("buildSystemPrompt", () => {
     expect(p).toMatch(/tool/i);
   });
 
-  it("tells the model not to emit markdown", () => {
-    // MessageList has no markdown parser, so `**bold**` would render literally.
-    // This instruction is the only thing preventing that.
+  it("tells the model to format with markdown", () => {
+    // MessageList renders through lib/markdown.ts. The prompt and the renderer
+    // have to agree: an instruction to write plain prose would waste it, and
+    // no instruction at all leaves formatting to chance.
+    const p = buildSystemPrompt({ activePortfolioName: "Main" });
+    expect(p).toMatch(/renders markdown/i);
+    expect(p).not.toMatch(/plain prose/i);
+  });
+
+  it("keeps tickers unmarked so they can be linked", () => {
+    // A ticker wrapped in backticks parses to a code span, which the entity
+    // linker deliberately does not descend into.
     expect(buildSystemPrompt({ activePortfolioName: "Main" })).toMatch(
-      /plain prose|markdown/i,
+      /never inside backticks/i,
     );
+  });
+});
+
+describe("buildSystemPrompt — web search grounding", () => {
+  const prompt = buildSystemPrompt({ activePortfolioName: "Main" });
+
+  it("treats search results as data, not instructions", () => {
+    // Search returns third-party text straight into the context window. Without
+    // this the model has no stated reason to ignore an instruction embedded in
+    // a page it fetched.
+    expect(prompt).toMatch(/never an\s*"?\s*instruction to follow|instruction to follow/i);
+  });
+
+  it("keeps the user's own figures off the web", () => {
+    // The grounding rule is what stops a scraped number being presented as the
+    // user's position.
+    expect(prompt).toMatch(/never a source for the/i);
+    expect(prompt).toMatch(/come from the tools/i);
+  });
+
+  it("routes arithmetic through the calculate tool", () => {
+    expect(prompt).toMatch(/calculate tool rather than in your head/i);
   });
 });

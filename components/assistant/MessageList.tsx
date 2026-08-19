@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { AssistantMessage } from "@/types";
+import { Markdown } from "./Markdown";
 
 type Props = {
   messages: AssistantMessage[];
@@ -14,8 +15,18 @@ const TOOL_LABELS: Record<string, string> = {
   get_portfolio: "reading your holdings",
   get_position: "checking that position",
   get_price_history: "pulling price history",
+  get_portfolio_history: "tracing your portfolio's value",
+  compare_portfolios: "comparing your portfolios",
   get_risk_metrics: "computing risk metrics",
   get_sector_breakdown: "breaking down sectors",
+  get_correlation: "correlating your holdings",
+  search_symbol: "looking up that ticker",
+  get_company_fundamentals: "reading the fundamentals",
+  get_earnings_calendar: "checking the earnings calendar",
+  get_market_context: "checking the wider market",
+  convert_currency: "converting currency",
+  calculate: "doing the arithmetic",
+  web_search: "searching the web",
 };
 
 export function MessageList({ messages, streaming, runningTool }: Props) {
@@ -51,9 +62,7 @@ function Bubble({ role, content }: { role: string; content: string }) {
       </div>
     );
   }
-  return (
-    <div className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800 dark:text-slate-200">
-      {content}
-    </div>
-  );
+  // Only the assistant's text is markdown. The user's own message is rendered
+  // verbatim above, so nothing they type is ever reinterpreted as markup.
+  return <Markdown content={content} />;
 }

@@ -3,21 +3,27 @@
 import { useEffect, useState } from "react";
 import { pickStarters } from "@/lib/assistant/prompts";
 
-type Props = { onPick: (prompt: string) => void };
+type Props = {
+  onPick: (prompt: string) => void;
+  /** Explicit prompts to show. Omit for a random pick of the starters. */
+  prompts?: string[];
+};
 
-export function SuggestionChips({ onPick }: Props) {
+export function SuggestionChips({ onPick, prompts: given }: Props) {
   // Picked after mount, never during render: randomising in render would make
   // the server and client markup disagree.
-  const [prompts, setPrompts] = useState<string[]>([]);
+  const [picked, setPicked] = useState<string[]>([]);
   useEffect(() => {
+    if (given) return;
     // react-hooks/set-state-in-effect objects to the extra render this costs.
     // That render is the point: `Math.random()` may not run during render or
     // the server and client markup disagree. One mount-time render is the
     // cheapest hydration-safe way to get a random pick.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPrompts(pickStarters(3));
-  }, []);
+    setPicked(pickStarters(3));
+  }, [given]);
 
+  const prompts = given ?? picked;
   if (prompts.length === 0) return null;
 
   return (

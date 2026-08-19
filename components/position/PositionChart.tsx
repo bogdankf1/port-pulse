@@ -340,10 +340,12 @@ function RangeToggle({
   onChange: (r: HistoryRange) => void;
 }) {
   return (
+    // Same chip treatment as the dashboard hero's range row: full-width and
+    // finger-sized on a phone, shrinking to content from `sm` up.
     <div
       role="tablist"
       aria-label="Chart timeframe"
-      className="inline-flex rounded-md border border-slate-200 bg-white/70 p-0.5 text-[11px] font-medium dark:border-slate-800 dark:bg-slate-900/60"
+      className="flex w-full items-center gap-1.5 sm:w-auto"
     >
       {HISTORY_RANGES.map((r) => {
         const active = r === range;
@@ -353,10 +355,10 @@ function RangeToggle({
             role="tab"
             aria-selected={active}
             onClick={() => onChange(r)}
-            className={`rounded px-2.5 py-1 font-mono tracking-wide transition-colors ${
+            className={`inline-flex min-h-[34px] flex-1 items-center justify-center rounded-md border font-mono text-[11px] font-medium tracking-wide transition-colors sm:flex-none sm:px-2.5 ${
               active
-                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
+                : "border-slate-300 text-slate-600 dark:border-slate-700 dark:text-slate-400"
             }`}
           >
             {HISTORY_RANGE_LABELS[r]}

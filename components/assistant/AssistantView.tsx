@@ -23,6 +23,7 @@ import {
 } from "@/lib/portfolios";
 import { createEventDecoder } from "@/lib/assistant/protocol";
 import type { AssistantMessage } from "@/types";
+import { ConfirmModal } from "../ConfirmModal";
 import { MessageList } from "./MessageList";
 import { Composer } from "./Composer";
 import { SuggestionChips } from "./SuggestionChips";
@@ -67,6 +68,12 @@ export function AssistantView() {
   const [streaming, setStreaming] = useState("");
   const [runningTool, setRunningTool] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Starts true: for a signed-in user a restore is always about to run, and
+  // defaulting to false would show the empty state for one frame before the
+  // saved transcript lands.
+  const [restoring, setRestoring] = useState(true);
+  const [clearOpen, setClearOpen] = useState(false);
+  const [followUps, setFollowUps] = useState<string[]>([]);
   const conversationId = useRef<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -94,6 +101,10 @@ export function AssistantView() {
         setMessages(loaded);
       } catch {
         // A failed restore leaves an empty chat, which is usable.
+      } finally {
+        // In an async callback, so this never fires synchronously in the
+        // effect body. `cancelled` guards the unmount/user-change race.
+        if (!cancelled) setRestoring(false);
       }
     })();
     return () => {
@@ -108,6 +119,9 @@ export function AssistantView() {
     async (text: string) => {
       setBusy(true);
       setStreaming("");
+      // The old suggestions described the previous exchange; leaving them up
+      // through the next answer would invite a tap on a stale question.
+      setFollowUps([]);
       setMessages((prev) => [
         ...prev,
         {
@@ -156,6 +170,8 @@ export function AssistantView() {
               setStreaming(accumulated);
             } else if (event.kind === "tool") {
               setRunningTool(event.status === "running" ? event.name : null);
+            } else if (event.kind === "followups") {
+              setFollowUps(event.questions);
             } else if (event.kind === "done") {
               conversationId.current = event.conversationId;
             } else if (event.kind === "error") {
@@ -190,6 +206,25 @@ export function AssistantView() {
     },
     [activePortfolioName],
   );
+
+  const clearConversation = useCallback(async () => {
+    const id = conversationId.current;
+    // Reset locally first — a conversation that was never persisted (nothing
+    // sent yet) has no id, and the user still expects the pane to empty.
+    conversationId.current = null;
+    setMessages([]);
+    setStreaming("");
+    setFollowUps([]);
+    if (!id) return;
+    try {
+      await fetch(`/api/assistant/conversations?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+    } catch {
+      // The pane is already empty; a failed delete only means the row survives
+      // and would be restored on the next visit.
+    }
+  }, []);
 
   // Order matters: readiness first, identity second.
   if (!authReady) {
@@ -228,8 +263,26 @@ export function AssistantView() {
       // which is the width that matters here.
       style={{ height: "calc(100dvh - 3.5rem - 1px - env(safe-area-inset-top))" }}
     >
+      {!restoring && !empty && (
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2 dark:border-slate-800/70">
+          <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
+            Assistant
+          </span>
+          <button
+            type="button"
+            onClick={() => setClearOpen(true)}
+            disabled={busy}
+            className="inline-flex min-h-[30px] items-center rounded-md border border-slate-300 px-2.5 font-mono text-[10px] uppercase tracking-widest text-slate-600 transition-colors hover:border-slate-400 hover:text-slate-900 disabled:opacity-40 dark:border-slate-700 dark:text-slate-400 dark:hover:border-slate-500 dark:hover:text-slate-100"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto px-4 py-6">
-        {empty ? (
+        {restoring ? (
+          <TranscriptSkeleton />
+        ) : empty ? (
           <div className="mx-auto max-w-md pt-10">
             <h1 className="font-mono text-sm uppercase tracking-widest text-slate-600 dark:text-slate-400">
               Assistant
@@ -246,11 +299,24 @@ export function AssistantView() {
             </div>
           </div>
         ) : (
-          <MessageList
-            messages={messages}
-            streaming={streaming}
-            runningTool={runningTool}
-          />
+          <>
+            <MessageList
+              messages={messages}
+              streaming={streaming}
+              runningTool={runningTool}
+            />
+            {!busy && followUps.length > 0 && (
+              <div className="mt-5">
+                <div className="mb-2 font-mono text-[10px] uppercase tracking-widest text-slate-500">
+                  Ask next
+                </div>
+                <SuggestionChips
+                  prompts={followUps}
+                  onPick={(p) => void send(p)}
+                />
+              </div>
+            )}
+          </>
         )}
       </div>
       <Composer
@@ -258,6 +324,40 @@ export function AssistantView() {
         onSend={(m) => void send(m)}
         onStop={() => abortRef.current?.abort()}
       />
+
+      <ConfirmModal
+        open={clearOpen}
+        title="Clear conversation"
+        body="This deletes the whole transcript for good. Your portfolios and holdings are not affected."
+        confirmLabel="Clear"
+        busyLabel="Clearing…"
+        destructive
+        onConfirm={async () => {
+          await clearConversation();
+          setClearOpen(false);
+        }}
+        onCancel={() => setClearOpen(false)}
+      />
     </main>
+  );
+}
+
+/** Shown while the saved transcript is being fetched, so the starter-prompt
+ *  empty state never flashes in front of a conversation that does exist. */
+function TranscriptSkeleton() {
+  return (
+    <div className="flex flex-col gap-5" role="status" aria-label="Loading conversation">
+      <div className="h-9 w-48 animate-pulse self-end rounded-2xl bg-slate-200 dark:bg-slate-800" />
+      <div className="flex flex-col gap-2">
+        <div className="h-3.5 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+        <div className="h-3.5 w-11/12 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+        <div className="h-3.5 w-3/5 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+      </div>
+      <div className="h-9 w-36 animate-pulse self-end rounded-2xl bg-slate-200 dark:bg-slate-800" />
+      <div className="flex flex-col gap-2">
+        <div className="h-3.5 w-full animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+        <div className="h-3.5 w-4/5 animate-pulse rounded bg-slate-200 dark:bg-slate-800" />
+      </div>
+    </div>
   );
 }

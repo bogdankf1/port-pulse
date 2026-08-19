@@ -14,19 +14,53 @@ import {
   listPortfolios,
   listPortfoliosSchema,
 } from "@/lib/mcp/tools";
+import {
+  comparePortfolios,
+  comparePortfoliosSchema,
+  getCorrelation,
+  getCorrelationSchema,
+  getPortfolioHistory,
+  getPortfolioHistorySchema,
+} from "@/lib/mcp/analysis";
+import {
+  getCompanyFundamentals,
+  getCompanyFundamentalsSchema,
+  getEarningsCalendar,
+  getEarningsCalendarSchema,
+  getMarketContext,
+  getMarketContextSchema,
+  searchSymbol,
+  searchSymbolSchema,
+} from "@/lib/mcp/market";
+import { convertCurrency, convertCurrencySchema } from "@/lib/mcp/fx";
+import { calculateSchema, evaluate } from "@/lib/calc";
 
 /**
- * Every tool the assistant can reach. All six are read-only, which is how the
- * "analysis only, never writes" constraint is satisfied — structurally, by the
- * absence of a write path, rather than by instruction.
+ * Every custom tool the assistant can reach. All of them are read-only, which
+ * is how the "analysis only, never writes" constraint is satisfied —
+ * structurally, by the absence of a write path, rather than by instruction.
+ * `calculate` evaluates a closed arithmetic grammar with no identifiers, so it
+ * is read-only in the same structural sense.
+ *
+ * The hosted `web_search` tool is declared separately in `loop.ts`; it runs on
+ * Anthropic's side and so has no `run` function to bind here.
  */
 export const TOOL_NAMES = [
   "list_portfolios",
   "get_portfolio",
   "get_position",
   "get_price_history",
+  "get_portfolio_history",
+  "compare_portfolios",
   "get_risk_metrics",
   "get_sector_breakdown",
+  "get_correlation",
+  "search_symbol",
+  "get_company_fundamentals",
+  "get_earnings_calendar",
+  "get_market_context",
+  "convert_currency",
+  "calculate",
 ] as const;
 
 export type ToolName = (typeof TOOL_NAMES)[number];
@@ -153,6 +187,95 @@ export function assistantTools(ctx: McpAuthContext) {
         "constituent tickers.",
       inputSchema: getSectorBreakdownSchema,
       run: async (args) => asText(await getSectorBreakdown(ctx, args)),
+    }),
+    zodTool({
+      name: "get_portfolio_history",
+      description:
+        "Get how one portfolio's total value moved over 1D, 1M, 3M, YTD or 1Y, " +
+        "with start and end value and percentage change. Use this for " +
+        "\"how have I done\" questions — get_price_history covers one ticker, " +
+        "this covers the whole portfolio.",
+      inputSchema: getPortfolioHistorySchema,
+      run: async (args) => asText(await getPortfolioHistory(ctx, args)),
+    }),
+    zodTool({
+      name: "compare_portfolios",
+      description:
+        "Compare two to four portfolios' returns over the same window, " +
+        "against SPY. Use when the user asks which of their portfolios did better.",
+      inputSchema: comparePortfoliosSchema,
+      run: async (args) => asText(await comparePortfolios(ctx, args)),
+    }),
+    zodTool({
+      name: "get_correlation",
+      description:
+        "Pairwise correlation of daily returns over the last year for two to " +
+        "twelve tickers. Use for genuine diversification questions — two " +
+        "holdings in different sectors can still move together.",
+      inputSchema: getCorrelationSchema,
+      run: async (args) => asText(await getCorrelation(ctx, args)),
+    }),
+    zodTool({
+      name: "search_symbol",
+      description:
+        "Resolve a company name to a ticker symbol. Use when the user names a " +
+        "company rather than a ticker.",
+      inputSchema: searchSymbolSchema,
+      run: async (args) => asText(await searchSymbol(args)),
+    }),
+    zodTool({
+      name: "get_company_fundamentals",
+      description:
+        "Valuation and quality figures for one ticker: P/E, EPS, market cap, " +
+        "beta, 52-week high/low and return, dividend yield, revenue growth, ROE.",
+      inputSchema: getCompanyFundamentalsSchema,
+      run: async (args) => asText(await getCompanyFundamentals(args)),
+    }),
+    zodTool({
+      name: "get_earnings_calendar",
+      description:
+        "Upcoming earnings dates for the given tickers, with EPS estimates. " +
+        "Defaults to the next 30 days.",
+      inputSchema: getEarningsCalendarSchema,
+      run: async (args) => asText(await getEarningsCalendar(args)),
+    }),
+    zodTool({
+      name: "get_market_context",
+      description:
+        "Today's move for the S&P 500, Nasdaq 100 and Dow ETFs. Use to say " +
+        "whether a portfolio move is its own or the whole market's.",
+      inputSchema: getMarketContextSchema,
+      run: async () => asText(await getMarketContext()),
+    }),
+    zodTool({
+      name: "convert_currency",
+      description:
+        "Convert an amount between currencies at the current rate — USD, EUR " +
+        "and UAH are supported in both directions, as are most other 3-letter " +
+        "codes. Use whenever the user asks for a figure in another currency.",
+      inputSchema: convertCurrencySchema,
+      run: async (args) => asText(await convertCurrency(args)),
+    }),
+    zodTool({
+      name: "calculate",
+      description:
+        "Evaluate an arithmetic expression exactly. Use this for every " +
+        "calculation you would otherwise do in your head — totals, " +
+        "differences, weights, what-if sizing — so the arithmetic in your " +
+        "answer is never approximate.",
+      inputSchema: calculateSchema,
+      run: async (args) => {
+        // A malformed expression is the model's mistake to correct, not a
+        // turn-ending failure: return it as a result so it can retry.
+        try {
+          return asText({ expression: args.expression, result: evaluate(args.expression) });
+        } catch (err) {
+          return asText({
+            expression: args.expression,
+            error: err instanceof Error ? err.message : "Could not evaluate",
+          });
+        }
+      },
     }),
   ];
 }

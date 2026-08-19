@@ -104,3 +104,19 @@ export async function listConversations(
     updatedAt: String(r.updated_at),
   }));
 }
+
+/**
+ * Delete one conversation. `assistant_messages.conversation_id` cascades, so
+ * the transcript goes with it, and RLS scopes the delete to its owner — an id
+ * belonging to someone else matches no row rather than erroring.
+ */
+export async function deleteConversation(
+  supabase: SupabaseClient,
+  conversationId: string,
+): Promise<void> {
+  const { error } = await supabase
+    .from(CONVERSATIONS)
+    .delete()
+    .eq("id", conversationId);
+  if (error) throw new Error(error.message);
+}

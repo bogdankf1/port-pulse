@@ -12,13 +12,12 @@ import { useModalDismiss } from "@/hooks/useModalDismiss";
  *  long enough that a sloppy tap doesn't register as a drag. */
 const DRAG_THRESHOLD = 32;
 
-export type SheetTab = "mix" | "risk" | "heatmap" | "ai";
+export type SheetTab = "mix" | "risk" | "heatmap";
 
 const TABS: { id: SheetTab; label: string }[] = [
   { id: "mix", label: "Mix" },
   { id: "risk", label: "Risk" },
   { id: "heatmap", label: "Heatmap" },
-  { id: "ai", label: "AI" },
 ];
 
 type Props = {

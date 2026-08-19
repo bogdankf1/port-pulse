@@ -43,6 +43,8 @@ type Props = {
 export function HoldingsList({ tickers, quotes, onRemove }: Props) {
   const [sort, setSort] = useState<SortState | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
+  // At most one row sits swiped open, so opening a second retracts the first.
+  const [swipedSymbol, setSwipedSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     queueMicrotask(() => setSort(readStoredSort()));
@@ -86,6 +88,8 @@ export function HoldingsList({ tickers, quotes, onRemove }: Props) {
             quotes={quotes}
             totalValue={totals.marketValue}
             onRemove={() => setPendingRemoval(t.symbol)}
+            swipeOpen={swipedSymbol === t.symbol}
+            onSwipeOpenChange={(open) => setSwipedSymbol(open ? t.symbol : null)}
           />
         ))}
       </div>

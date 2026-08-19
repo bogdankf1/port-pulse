@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { mcpContextFromSession } from "@/lib/assistant/context";
-import { runAssistantTurn } from "@/lib/assistant/loop";
+import { generateFollowUps, runAssistantTurn } from "@/lib/assistant/loop";
 import { encodeEvent } from "@/lib/assistant/protocol";
 import {
   appendMessage,
@@ -128,6 +128,20 @@ export async function POST(request: Request) {
               content: assistantText,
             })
           : "";
+
+        // After the answer is committed, never before: the follow-ups describe
+        // an exchange that has already happened, and a failure here must not
+        // cost the user their answer.
+        if (assistantText && !request.signal.aborted) {
+          const questions = await generateFollowUps({
+            question: message,
+            answer: assistantText,
+            signal: request.signal,
+          });
+          if (questions.length > 0) {
+            send(encodeEvent({ kind: "followups", questions }));
+          }
+        }
 
         send(encodeEvent({ kind: "done", conversationId, messageId }));
       } catch (err) {

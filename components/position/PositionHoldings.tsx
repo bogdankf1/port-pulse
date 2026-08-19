@@ -61,6 +61,17 @@ export function PositionHoldings({ symbol }: Props) {
     getActiveIdServerSnapshot,
   );
 
+  // Auth readiness must be its OWN subscribed snapshot. `onAuthStateChange`
+  // emits the user (INITIAL_SESSION) while `initialFetchDone` is still false,
+  // so the fetch effect below would run, bail at the readiness guard, and never
+  // re-run — `isLoggedIn` does not change when readiness later flips. That is
+  // the direct-load stall: no request to /api/positions is ever made.
+  const authReady = useSyncExternalStore(
+    subscribeUser,
+    isAuthReady,
+    () => false,
+  );
+
   const isLoggedIn = Boolean(user);
   const [remote, setRemote] = useState<{ key: string; slot: RemoteSlot } | null>(
     null,
@@ -71,7 +82,7 @@ export function PositionHoldings({ symbol }: Props) {
   // inside async callbacks so it doesn't fire synchronously in the effect body.
   useEffect(() => {
     if (!isLoggedIn) return;
-    if (!isAuthReady()) return;
+    if (!authReady) return;
     const controller = new AbortController();
     const key = symbol;
     fetch(`/api/positions/${encodeURIComponent(symbol)}`, {
@@ -102,7 +113,7 @@ export function PositionHoldings({ symbol }: Props) {
         setRemote({ key, slot: { kind: "error", message: err.message } });
       });
     return () => controller.abort();
-  }, [symbol, isLoggedIn]);
+  }, [symbol, isLoggedIn, authReady]);
 
   let state: LoadState;
   if (isLoggedIn) {
@@ -201,12 +212,17 @@ function HoldingsView({
     pl != null && hasCost && costBasis > 0 ? (pl / costBasis) * 100 : null;
   const plPositive = pl != null && pl >= 0;
   const plClass = pl == null ? "text-slate-500" : plColor(pl);
+  // Weighted average across every portfolio holding the symbol.
+  const avgEntry = hasCost && totalQty > 0 ? costBasis / totalQty : null;
 
-  const showRows = rows.length > 0 && rows.some((r) => r.quantity != null);
+  // One row restates Total qty and Market value verbatim — the per-portfolio
+  // table only earns its space once the symbol is held in more than one, and
+  // its unique column (entry price) is a stat above either way.
+  const showRows = rows.length > 1 && rows.some((r) => r.quantity != null);
 
   return (
     <Shell>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <Stat
           label="Total qty"
           value={
@@ -214,18 +230,25 @@ function HoldingsView({
           }
         />
         <Stat
-          label="Market value"
-          value={
-            marketValue != null ? `$${formatMoney(marketValue)}` : <Em>—</Em>
-          }
+          label="Avg entry"
+          value={avgEntry != null ? `$${avgEntry.toFixed(2)}` : <Em>—</Em>}
         />
         <Stat
           label="Cost basis"
           value={hasCost ? `$${formatMoney(costBasis)}` : <Em>—</Em>}
         />
         <Stat
+          label="Market value"
+          value={
+            marketValue != null ? `$${formatMoney(marketValue)}` : <Em>—</Em>
+          }
+        />
+        {/* Full width on mobile: it is the number the page exists to answer,
+            and it closes the 2-column grid rather than sitting half-orphaned. */}
+        <Stat
           label="P&L"
           valueClass={plClass}
+          wrapClass="col-span-2 sm:col-span-1"
           value={
             pl != null ? (
               <>
@@ -308,18 +331,25 @@ function Stat({
   label,
   value,
   valueClass,
+  wrapClass,
 }: {
   label: string;
   value: React.ReactNode;
   valueClass?: string;
+  wrapClass?: string;
 }) {
   return (
-    <div>
+    <div className={wrapClass}>
       <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-500">
         {label}
       </div>
+      {/* The default colour is *replaced*, not appended — emitting both
+          `text-slate-900` and `plColor`'s class leaves the winner to stylesheet
+          order, which is what kept P&L rendering near-black. */}
       <div
-        className={`mt-0.5 font-mono text-sm font-semibold tabular-nums text-slate-900 dark:text-slate-100 ${valueClass ?? ""}`}
+        className={`mt-0.5 font-mono text-sm font-semibold tabular-nums ${
+          valueClass ?? "text-slate-900 dark:text-slate-100"
+        }`}
       >
         {value}
       </div>

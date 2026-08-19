@@ -32,19 +32,30 @@ describe("assistantTools", () => {
     // so the error surfaced far from its cause. Keep this next to the code it
     // constrains.
     const tools: ToolRunnerTools = assistantTools(CTX);
-    expect(tools).toHaveLength(6);
+    expect(tools.length).toBeGreaterThan(0);
   });
 
-  it("exposes exactly the six read-only MCP tools", () => {
+  it("exposes exactly the expected read-only tools", () => {
+    // Listed explicitly rather than counted: a tool silently disappearing from
+    // the bind is a capability regression the model cannot report.
     const names = assistantTools(CTX).map((t) => t.name).sort();
     expect(names).toEqual([
+      "calculate",
+      "compare_portfolios",
+      "convert_currency",
+      "get_company_fundamentals",
+      "get_correlation",
+      "get_earnings_calendar",
+      "get_market_context",
       "get_portfolio",
+      "get_portfolio_history",
       "get_position",
       "get_price_history",
       "get_risk_metrics",
       "get_sector_breakdown",
+      "search_symbol",
       "list_portfolios",
-    ]);
+    ].sort());
   });
 
   it("keeps TOOL_NAMES in step with the definitions", () => {
