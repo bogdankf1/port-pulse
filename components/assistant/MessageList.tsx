@@ -24,6 +24,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_company_fundamentals: "reading the fundamentals",
   get_earnings_calendar: "checking the earnings calendar",
   get_market_context: "checking the wider market",
+  get_balances: "reading your balances",
   convert_currency: "converting currency",
   calculate: "doing the arithmetic",
   web_search: "searching the web",

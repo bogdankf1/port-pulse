@@ -46,6 +46,7 @@ describe("assistantTools", () => {
       "get_company_fundamentals",
       "get_correlation",
       "get_earnings_calendar",
+      "get_balances",
       "get_market_context",
       "get_portfolio",
       "get_portfolio_history",

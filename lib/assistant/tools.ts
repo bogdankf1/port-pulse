@@ -17,6 +17,8 @@ import {
 import {
   comparePortfolios,
   comparePortfoliosSchema,
+  getBalances,
+  getBalancesSchema,
   getCorrelation,
   getCorrelationSchema,
   getPortfolioHistory,
@@ -59,6 +61,7 @@ export const TOOL_NAMES = [
   "get_company_fundamentals",
   "get_earnings_calendar",
   "get_market_context",
+  "get_balances",
   "convert_currency",
   "calculate",
 ] as const;
@@ -246,6 +249,16 @@ export function assistantTools(ctx: McpAuthContext) {
         "whether a portfolio move is its own or the whole market's.",
       inputSchema: getMarketContextSchema,
       run: async () => asText(await getMarketContext()),
+    }),
+    zodTool({
+      name: "get_balances",
+      description:
+        "Get the user's uploaded cash and bank balances, each converted to USD, " +
+        "with the date each was last updated. Net worth is this total plus a " +
+        "portfolio's market value. Balances do not refresh on their own, so " +
+        "quote as_of when it matters.",
+      inputSchema: getBalancesSchema,
+      run: async () => asText(await getBalances(ctx)),
     }),
     zodTool({
       name: "convert_currency",

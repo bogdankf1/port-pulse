@@ -17,6 +17,8 @@ import {
   getUserServerSnapshot,
   subscribeUser,
 } from "@/lib/auth";
+import { computeTotals } from "@/lib/holdings";
+import { formatMoney } from "@/lib/format";
 import { useFinnhubPrices, usePortfolioVersion } from "@/lib/finnhub";
 import { useSectorsVersion } from "@/lib/sectors";
 import { getTheme, getThemeServerSnapshot, subscribeTheme } from "@/lib/theme";
@@ -41,6 +43,9 @@ import { Uploader } from "./Uploader";
 import { UploaderModal } from "./UploaderModal";
 import { AddTickerModal } from "./AddTickerModal";
 import { AddMenu } from "./AddMenu";
+import { BalancesModal } from "./BalancesModal";
+import { BalancesSection } from "./BalancesSection";
+import { useBalances } from "@/hooks/useBalances";
 import { HoldingsList } from "./mobile/HoldingsList";
 import { PortfolioHero } from "./mobile/PortfolioHero";
 import { AnalyticsSheet } from "./mobile/AnalyticsSheet";
@@ -88,6 +93,7 @@ export function WatchlistDashboard() {
 
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [balancesOpen, setBalancesOpen] = useState(false);
   const [view, setView] = useState<ViewMode>("table");
 
   useEffect(() => {
@@ -109,6 +115,17 @@ export function WatchlistDashboard() {
   const isDesktop = useIsDesktop();
   const quotes = useQuotes(symbols);
 
+  // Balances are account-level and optional; signed-out sessions have none.
+  const balances = useBalances(isLoggedIn);
+
+  // Only for the desktop net-worth line — the mobile hero and both tables
+  // compute their own, and this must not become a second source of truth for
+  // anything they display.
+  const equityTotals = useMemo(
+    () => computeTotals(tickers, quotes),
+    [tickers, quotes],
+  );
+
   const overCap = tickers.length > SOFT_CAP;
   const showSelector = isLoggedIn && portfolios.length > 0;
   // Read during render rather than via useSyncExternalStore: every input this
@@ -128,6 +145,14 @@ export function WatchlistDashboard() {
           <div className="font-mono text-[11px] uppercase tracking-widest text-slate-500">
             {tickers.length} {tickers.length === 1 ? "ticker" : "tickers"}
           </div>
+          {isDesktop && balances.totalUsd > 0 && equityTotals.hasAnyValue && (
+            <div className="font-mono text-[11px] tabular-nums text-slate-500">
+              Net worth{" "}
+              <span className="font-medium text-slate-700 dark:text-slate-300">
+                ${formatMoney(equityTotals.marketValue + balances.totalUsd)}
+              </span>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {tickers.length > 0 && (
@@ -136,6 +161,7 @@ export function WatchlistDashboard() {
               <AddMenu
                 onAddTicker={() => setAddOpen(true)}
                 onAddScreenshot={() => setUploaderOpen(true)}
+                onAddBalances={() => setBalancesOpen(true)}
               />
               <Link
                 href="/assistant"
@@ -183,15 +209,33 @@ export function WatchlistDashboard() {
             ) : (
               <PortfolioHeatmap tickers={tickers} />
             )}
+            <BalancesSection
+              balances={balances.balances}
+              rates={balances.rates}
+              totalUsd={balances.totalUsd}
+              missingRates={balances.missingRates}
+              onChanged={() => void balances.refresh()}
+            />
           </>
         ) : (
           <>
-            <PortfolioHero tickers={tickers} quotes={quotes} />
+            <PortfolioHero
+              tickers={tickers}
+              quotes={quotes}
+              balancesUsd={balances.totalUsd}
+            />
             {overCap && <CapBanner />}
             <HoldingsList
               tickers={tickers}
               quotes={quotes}
               onRemove={(symbol) => removeFromWatchlist(symbol)}
+            />
+            <BalancesSection
+              balances={balances.balances}
+              rates={balances.rates}
+              totalUsd={balances.totalUsd}
+              missingRates={balances.missingRates}
+              onChanged={() => void balances.refresh()}
             />
             <AnalyticsSheet peek={<SheetPeek tickers={tickers} />}>
               {(tab) =>
@@ -213,6 +257,12 @@ export function WatchlistDashboard() {
       <UploaderModal
         open={uploaderOpen}
         onClose={() => setUploaderOpen(false)}
+      />
+      <BalancesModal
+        open={balancesOpen}
+        existing={balances.balances}
+        onClose={() => setBalancesOpen(false)}
+        onSaved={() => void balances.refresh()}
       />
       <AddTickerModal
         open={addOpen}

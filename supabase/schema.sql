@@ -106,3 +106,80 @@ drop policy if exists "Users manage own assistant messages" on assistant_message
 create policy "Users manage own assistant messages"
   on assistant_messages for all
   using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- Balances: cash and bank account amounts, uploaded from a CSV export.
+--
+-- Deliberately NOT rows in watchlist_items. `symbol` there is assumed tradable
+-- by everything downstream — the Finnhub socket subscribes to it, Yahoo fetches
+-- history for it, lookupSector maps it — so a pseudo-symbol like CASH:USD would
+-- be sent to all three. A separate table means every consumer opts in.
+--
+-- Account-level rather than per-portfolio: a bank balance does not belong to
+-- one equity portfolio any more than another.
+--
+-- The native amount and currency are stored; the USD figure never is. Rates
+-- move, and a stored conversion is wrong by the next day with nothing to say so.
+create table if not exists balances (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  label text not null,
+  amount numeric not null,
+  currency text not null,
+  -- When the figure was true, not when the row was written. A balance is a
+  -- point-in-time number and nothing refreshes it the way prices refresh.
+  as_of timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  -- Identity is (label, currency), not label alone: a bank issues one card per
+  -- currency under a single account name, so "cash" in GBP, CHF, USD and EUR
+  -- are four separate balances rather than one row written four times.
+  unique (user_id, label, currency)
+);
+
+create index if not exists balances_user_id_idx on balances(user_id);
+
+alter table balances enable row level security;
+
+drop policy if exists "balances_select_own" on balances;
+create policy "balances_select_own"
+  on balances for select using (auth.uid() = user_id);
+
+drop policy if exists "balances_insert_own" on balances;
+create policy "balances_insert_own"
+  on balances for insert with check (auth.uid() = user_id);
+
+drop policy if exists "balances_update_own" on balances;
+create policy "balances_update_own"
+  on balances for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+drop policy if exists "balances_delete_own" on balances;
+create policy "balances_delete_own"
+  on balances for delete using (auth.uid() = user_id);
+
+-- Wholesale replace of a user's balances, in one transaction. Two round trips
+-- from the client would leave a window where a failure had deleted everything
+-- and inserted nothing. SECURITY INVOKER so RLS still applies.
+create or replace function replace_balances(rows jsonb)
+returns void
+language plpgsql
+security invoker
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  delete from balances where user_id = auth.uid();
+
+  insert into balances (user_id, label, amount, currency, as_of)
+  select
+    auth.uid(),
+    r->>'label',
+    (r->>'amount')::numeric,
+    upper(r->>'currency'),
+    now()
+  from jsonb_array_elements(rows) as r;
+end;
+$$;
+
+revoke all on function replace_balances(jsonb) from public;
+grant execute on function replace_balances(jsonb) to authenticated;

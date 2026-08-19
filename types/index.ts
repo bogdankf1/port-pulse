@@ -99,3 +99,20 @@ export type AssistantConversation = {
   title: string | null;
   updatedAt: string;
 };
+
+/** A cash or bank account balance, stored in its native currency. */
+export type Balance = {
+  id: string;
+  label: string;
+  amount: number;
+  currency: string;
+  /** ISO timestamp of when the figure was true, not when the row was written. */
+  asOf: string;
+};
+
+/** One row as read out of an uploaded CSV, before it is saved. */
+export type ParsedBalance = {
+  label: string;
+  amount: number;
+  currency: string;
+};

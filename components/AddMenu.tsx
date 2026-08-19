@@ -6,9 +6,10 @@ import { useDismissable } from "@/hooks/useDismissable";
 type Props = {
   onAddTicker: () => void;
   onAddScreenshot: () => void;
+  onAddBalances: () => void;
 };
 
-export function AddMenu({ onAddTicker, onAddScreenshot }: Props) {
+export function AddMenu({ onAddTicker, onAddScreenshot, onAddBalances }: Props) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useDismissable(open, setOpen);
 
@@ -20,6 +21,11 @@ export function AddMenu({ onAddTicker, onAddScreenshot }: Props) {
   function pickScreenshot() {
     setOpen(false);
     onAddScreenshot();
+  }
+
+  function pickBalances() {
+    setOpen(false);
+    onAddBalances();
   }
 
   return (
@@ -59,6 +65,15 @@ export function AddMenu({ onAddTicker, onAddScreenshot }: Props) {
           >
             <ImageIcon />
             <span>Add screenshot</span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={pickBalances}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <BankIcon />
+            <span>Add balances</span>
           </button>
         </div>
       )}
@@ -145,6 +160,26 @@ function ImageIcon() {
       <rect x="3" y="3" width="18" height="18" rx="2" />
       <circle cx="8.5" cy="8.5" r="1.5" />
       <path d="M21 15l-5-5L5 21" />
+    </svg>
+  );
+}
+
+function BankIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M3 10l9-5 9 5" />
+      <path d="M5 10v8M10 10v8M14 10v8M19 10v8" />
+      <path d="M3 20h18" />
     </svg>
   );
 }

@@ -12,9 +12,11 @@ const RANGES: PortfolioHistoryRange[] = ["1D", "1M", "3M", "YTD", "1Y"];
 type Props = {
   tickers: Ticker[];
   quotes: Quotes;
+  /** USD total of uploaded balances, or 0 when there are none. */
+  balancesUsd?: number;
 };
 
-export function PortfolioHero({ tickers, quotes }: Props) {
+export function PortfolioHero({ tickers, quotes, balancesUsd = 0 }: Props) {
   const [range, setRange] = useState<PortfolioHistoryRange>("1M");
   const history = usePortfolioHistory(tickers, range);
   const totals = useMemo(() => computeTotals(tickers, quotes), [tickers, quotes]);
@@ -61,6 +63,18 @@ export function PortfolioHero({ tickers, quotes }: Props) {
           </span>
         )}
       </div>
+
+      {/* Additive and secondary on purpose: the headline stays the equities
+          total, so nothing above or below this line changes meaning. */}
+      {balancesUsd > 0 && totals.hasAnyValue && (
+        <div className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
+          Net worth{" "}
+          <span className="font-medium text-slate-700 dark:text-slate-300">
+            ${formatMoney(totals.marketValue + balancesUsd)}
+          </span>
+          <span className="ml-1">· incl. ${formatMoney(balancesUsd)} balances</span>
+        </div>
+      )}
 
       <div className="mt-2 h-[72px] w-full">
         {points.length > 1 ? (

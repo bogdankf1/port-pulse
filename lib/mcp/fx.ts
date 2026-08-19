@@ -87,3 +87,35 @@ export async function convertCurrency(args: {
     source: "Yahoo Finance",
   };
 }
+
+/**
+ * Rate to USD for each currency, keyed by the currency code.
+ *
+ * `allSettled` rather than `all`: one unquotable currency must leave the other
+ * balances convertible, and callers report the gap instead of counting the
+ * unconverted amount as zero.
+ */
+export async function usdRates(
+  currencies: readonly string[],
+): Promise<Map<string, number>> {
+  const unique = [...new Set(currencies.map((c) => c.trim().toUpperCase()))].filter(
+    (c) => CODE_RE.test(c) && c !== "USD",
+  );
+
+  const settled = await Promise.allSettled(
+    unique.map(async (code) => {
+      const chart = await fetchYahooChart(`${code}USD=X`, "1D");
+      const last = chart.points.at(-1);
+      if (!last || !Number.isFinite(last.value) || last.value <= 0) {
+        throw new Error(`No rate for ${code}`);
+      }
+      return [code, last.value] as const;
+    }),
+  );
+
+  const rates = new Map<string, number>([["USD", 1]]);
+  for (const result of settled) {
+    if (result.status === "fulfilled") rates.set(result.value[0], result.value[1]);
+  }
+  return rates;
+}

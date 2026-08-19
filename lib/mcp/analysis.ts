@@ -16,6 +16,8 @@ import type { HistoryPoint, PortfolioHistoryRange } from "@/types";
 import type { McpAuthContext } from "./auth";
 import { MAX_SYMBOLS, SYMBOL_RE } from "./config";
 import { createUserClient } from "./supabase";
+import { usdRates } from "./fx";
+import { toUsd, totalUsd } from "@/lib/balances";
 
 /**
  * Portfolio-derived analysis. Each of these reuses the exact module the UI
@@ -250,5 +252,57 @@ export async function getCorrelation(
     basis: "daily returns, Pearson",
     missing_symbols: missing.length ? missing : undefined,
     pairs,
+  };
+}
+
+/* -------------------------------------------------------------- balances */
+
+export const getBalancesSchema = z.object({});
+
+/**
+ * Cash and bank balances, converted to USD at the current rate.
+ *
+ * `as_of` is returned per account and is load-bearing: unlike a price, an
+ * uploaded balance never refreshes itself, so an answer that quotes net worth
+ * has to be able to say how old the cash half of it is.
+ */
+export async function getBalances(ctx: McpAuthContext) {
+  const supabase = createUserClient(ctx);
+  const { data, error } = await supabase
+    .from("balances")
+    .select("label, amount, currency, as_of")
+    .eq("user_id", ctx.userId)
+    .order("label", { ascending: true });
+  if (error) throw new Error(`Failed to load balances: ${error.message}`);
+
+  const rows = (data ?? []).map((r) => ({
+    id: "",
+    label: String(r.label),
+    amount: Number(r.amount),
+    currency: String(r.currency).toUpperCase(),
+    asOf: String(r.as_of),
+  }));
+
+  if (rows.length === 0) {
+    return {
+      message:
+        "No cash or bank balances have been uploaded. The user can add them from Add → Add balances on the dashboard.",
+    };
+  }
+
+  const rates = await usdRates(rows.map((r) => r.currency));
+  const total = totalUsd(rows, rates);
+
+  return {
+    accounts: rows.map((r) => ({
+      label: r.label,
+      amount: r.amount,
+      currency: r.currency,
+      usd_value: toUsd(r, rates),
+      as_of: r.asOf,
+    })),
+    total_usd: total.usd,
+    unconvertible_currencies: total.missing.length ? total.missing : undefined,
+    note: "Balances are uploaded by hand and do not refresh. Check as_of before treating them as current.",
   };
 }
