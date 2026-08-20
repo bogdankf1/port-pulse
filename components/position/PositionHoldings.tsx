@@ -1,12 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import {
-  getUser,
-  getUserServerSnapshot,
-  isAuthReady,
-  subscribeUser,
-} from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { usePrice } from "@/lib/finnhub";
 import {
   getWatchlist,
@@ -22,6 +17,7 @@ import {
   subscribePortfolios,
 } from "@/lib/portfolios";
 import { formatMoney, formatQty, plColor } from "@/lib/format";
+import { positionTotals } from "@/lib/holdings";
 import type { PositionDetails, PositionPortfolioRow } from "@/types";
 
 type Props = { symbol: string };
@@ -40,11 +36,7 @@ type LoadState =
   | { status: "anon"; row: PositionPortfolioRow | null; name: string };
 
 export function PositionHoldings({ symbol }: Props) {
-  const user = useSyncExternalStore(
-    subscribeUser,
-    getUser,
-    getUserServerSnapshot,
-  );
+  const { user, ready: authReady } = useAuth();
   const tickers = useSyncExternalStore(
     subscribeWatchlist,
     getWatchlist,
@@ -59,17 +51,6 @@ export function PositionHoldings({ symbol }: Props) {
     subscribeActivePortfolio,
     getActivePortfolioId,
     getActiveIdServerSnapshot,
-  );
-
-  // Auth readiness must be its OWN subscribed snapshot. `onAuthStateChange`
-  // emits the user (INITIAL_SESSION) while `initialFetchDone` is still false,
-  // so the fetch effect below would run, bail at the readiness guard, and never
-  // re-run — `isLoggedIn` does not change when readiness later flips. That is
-  // the direct-load stall: no request to /api/positions is ever made.
-  const authReady = useSyncExternalStore(
-    subscribeUser,
-    isAuthReady,
-    () => false,
   );
 
   const isLoggedIn = Boolean(user);
@@ -195,25 +176,18 @@ function HoldingsView({
         ? [state.row]
         : [];
 
-  const totalQty = rows.reduce((sum, r) => sum + (r.quantity ?? 0), 0);
-  let costBasis = 0;
-  let hasCost = false;
-  for (const r of rows) {
-    if (r.quantity != null && r.entryPrice != null) {
-      costBasis += r.quantity * r.entryPrice;
-      hasCost = true;
-    }
-  }
-  const marketValue =
-    current != null && totalQty > 0 ? current * totalQty : null;
-  const pl =
-    marketValue != null && hasCost ? marketValue - costBasis : null;
-  const plPct =
-    pl != null && hasCost && costBasis > 0 ? (pl / costBasis) * 100 : null;
+  // Aggregated in lib/holdings.ts so this page and /api/positions cannot drift,
+  // and so the partial-cost subset rule is applied in one tested place.
+  const {
+    quantity: totalQty,
+    costBasis,
+    avgEntry,
+    marketValue,
+    pl,
+    plPct,
+  } = positionTotals(rows, current ?? null);
   const plPositive = pl != null && pl >= 0;
   const plClass = pl == null ? "text-slate-500" : plColor(pl);
-  // Weighted average across every portfolio holding the symbol.
-  const avgEntry = hasCost && totalQty > 0 ? costBasis / totalQty : null;
 
   // One row restates Total qty and Market value verbatim — the per-portfolio
   // table only earns its space once the symbol is held in more than one, and
@@ -235,7 +209,7 @@ function HoldingsView({
         />
         <Stat
           label="Cost basis"
-          value={hasCost ? `$${formatMoney(costBasis)}` : <Em>—</Em>}
+          value={costBasis != null ? `$${formatMoney(costBasis)}` : <Em>—</Em>}
         />
         <Stat
           label="Market value"

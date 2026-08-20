@@ -427,12 +427,24 @@ costs a Yahoo fetch.
 **Affected areas:** new `middleware.ts`, `app/api/*` routes, whatever the assistant adds.
 
 **Open questions:**
-- Should the AI assistant require sign-in? That would resolve most of this by itself and
-  is defensible — memory (Item 4) needs an identity anyway.
+- ~~Should the AI assistant require sign-in?~~ **Answered — yes, and so does everything
+  else that costs money.** As of the C-1 fix, all three paid routes (`/api/parse`,
+  `/api/balances/parse`, `/api/assistant`) require a session. `/api/parse` was the one
+  this item missed: it was already unauthenticated *and* already billing a Claude Vision
+  call per request, with the dropzone fanning out over ten files at once.
+- What remains of this item is narrower: the three read-only compute endpoints
+  (`/api/risk`, `/api/sectors`, `/api/portfolio-history`) are still public and still fan
+  out to Yahoo per symbol. The cost of abuse there is a Yahoo 429 that degrades the app
+  for the owner, not a bill — a real problem, but a different and smaller one.
 
 ---
 
-### 13. 🐛 Bug — signed-out holdings don't persist
+### 13. 🐛 Bug — signed-out holdings don't persist — **RESOLVED**
+
+> **Status: closed by the C-1 fix.** Screenshot upload now requires a session, so
+> the signed-out path no longer accumulates holdings worth persisting. CLAUDE.md
+> has been corrected to describe in-memory guest state rather than
+> `sessionStorage`. The two no longer disagree.
 
 **Idea (raw):** Found during the redesign's verification pass.
 

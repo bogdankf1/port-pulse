@@ -251,7 +251,10 @@ export function WatchlistDashboard() {
           </>
         )
       ) : (
-        <EmptyPortfolio onAddTicker={() => setAddOpen(true)} />
+        <EmptyPortfolio
+          onAddTicker={() => setAddOpen(true)}
+          isLoggedIn={isLoggedIn}
+        />
       )}
 
       <UploaderModal
@@ -285,16 +288,27 @@ function CapBanner() {
 // Only ever rendered once loading has genuinely finished — the caller gates on
 // isWatchlistLoading(). It no longer carries a loading branch of its own, which
 // is what used to let "This portfolio is empty" show for a frame mid-load.
-function EmptyPortfolio({ onAddTicker }: { onAddTicker: () => void }) {
+function EmptyPortfolio({
+  onAddTicker,
+  isLoggedIn,
+}: {
+  onAddTicker: () => void;
+  isLoggedIn: boolean;
+}) {
   return (
     <div className="flex flex-col items-center gap-5 py-6">
       <div className="text-center">
         <div className="font-mono text-sm font-medium text-slate-700 dark:text-slate-200">
-          This portfolio is empty
+          {isLoggedIn ? "This portfolio is empty" : "Nothing tracked yet"}
         </div>
-        <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
-          Drop a screenshot of your brokerage portfolio to populate it.
-        </p>
+        {/* Signed out the Uploader below renders a sign-in prompt instead of a
+            dropzone, so it carries its own explanation and this line would
+            invite an action that is not on offer. */}
+        {isLoggedIn && (
+          <p className="mx-auto mt-1 max-w-sm text-xs text-slate-500 dark:text-slate-400">
+            Drop a screenshot of your brokerage portfolio to populate it.
+          </p>
+        )}
       </div>
       <Uploader mode="first" onComplete={() => {}} />
       <button

@@ -30,6 +30,26 @@ const MAX_RESULTS = 8;
 // Mirror the watchlist-route regex — anything we can't persist is useless here.
 const SYMBOL_RE = /^[A-Z]{1,5}(\.[A-Z])?$/;
 
+/**
+ * Instrument types that are not a holding. Everything else is offered.
+ *
+ * Deliberately a deny-list. The allow-list this replaces admitted only
+ * "Common Stock", which meant every ETF — Finnhub types them "ETP" — was
+ * dropped from the only manual add path in the app, even though `sectorMap`
+ * maps SPY, VOO, IVV, VTI and QQQ by name and every risk metric benchmarks
+ * against SPY. An allow-list fails closed on any type it has not heard of, and
+ * that failure is silent; a deny-list surfaces the unknown instead.
+ */
+const NON_HOLDING_TYPES: ReadonlySet<string> = new Set([
+  "warrant",
+  "right",
+  "unit",
+]);
+
+export function isTradableType(type: string): boolean {
+  return !NON_HOLDING_TYPES.has(type.trim().toLowerCase());
+}
+
 export function useTickerSearch(rawQuery: string): SearchState {
   const [state, setState] = useState<SearchState>({ status: "idle" });
 
@@ -73,7 +93,7 @@ export function useTickerSearch(rawQuery: string): SearchState {
           const description = (r.description || "").toString();
           const type = (r.type || "").toString();
           if (!sym || !SYMBOL_RE.test(sym)) continue;
-          if (type && type !== "Common Stock") continue;
+          if (!isTradableType(type)) continue;
           results.push({
             symbol: sym,
             displaySymbol: display,

@@ -9,6 +9,7 @@ import {
   sortTickers,
   sortValue,
   unrealizedPl,
+  positionTotals,
   weightPct,
   type Quotes,
 } from "./holdings";
@@ -207,5 +208,74 @@ describe("nextSort", () => {
       column: "value",
       direction: "desc",
     });
+  });
+});
+
+describe("positionTotals", () => {
+  it("aggregates rows that all carry a cost", () => {
+    const t = positionTotals(
+      [
+        { quantity: 10, entryPrice: 100 },
+        { quantity: 10, entryPrice: 200 },
+      ],
+      250,
+    );
+    expect(t.quantity).toBe(20);
+    expect(t.costBasis).toBe(3000);
+    expect(t.avgEntry).toBe(150);
+    expect(t.marketValue).toBe(5000);
+    expect(t.pl).toBe(2000);
+    expect(t.plPct).toBeCloseTo(66.667, 3);
+  });
+
+  // The bug this function exists to prevent: a partial cost basis measured
+  // against the FULL quantity. Averaging 1000 over 20 shares reports a $50
+  // entry for a lot bought at $100, and P&L compares 20 shares of market value
+  // against 10 shares of cost.
+  it("measures avg entry and P&L over only the lots that have a cost", () => {
+    const t = positionTotals(
+      [
+        { quantity: 10, entryPrice: 100 },
+        { quantity: 10, entryPrice: null },
+      ],
+      150,
+    );
+    expect(t.quantity).toBe(20);
+    expect(t.costBasis).toBe(1000);
+    expect(t.avgEntry).toBe(100);
+    expect(t.marketValue).toBe(3000);
+    expect(t.pl).toBe(500);
+    expect(t.plPct).toBe(50);
+  });
+
+  it("reports no cost figures when no row has an entry price", () => {
+    const t = positionTotals([{ quantity: 10, entryPrice: null }], 150);
+    expect(t.quantity).toBe(10);
+    expect(t.costBasis).toBeNull();
+    expect(t.avgEntry).toBeNull();
+    expect(t.marketValue).toBe(1500);
+    expect(t.pl).toBeNull();
+    expect(t.plPct).toBeNull();
+  });
+
+  it("keeps cost figures when the price is unknown", () => {
+    const t = positionTotals([{ quantity: 10, entryPrice: 100 }], null);
+    expect(t.costBasis).toBe(1000);
+    expect(t.avgEntry).toBe(100);
+    expect(t.marketValue).toBeNull();
+    expect(t.pl).toBeNull();
+  });
+
+  it("ignores rows with no quantity", () => {
+    const t = positionTotals(
+      [
+        { quantity: null, entryPrice: 100 },
+        { quantity: 5, entryPrice: 20 },
+      ],
+      30,
+    );
+    expect(t.quantity).toBe(5);
+    expect(t.costBasis).toBe(100);
+    expect(t.marketValue).toBe(150);
   });
 });

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { positionTotals } from "@/lib/holdings";
 import type { PositionDetails, PositionPortfolioRow } from "@/types";
 
 export const runtime = "nodejs";
@@ -23,7 +24,7 @@ type Ctx = { params: Promise<{ symbol: string }> };
 
 export async function GET(_request: NextRequest, ctx: Ctx) {
   if (!isConfigured()) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
   const { symbol: symbolRaw } = await ctx.params;
   const symbol = (symbolRaw || "").trim().toUpperCase();
@@ -36,7 +37,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
 
   const { data, error } = await supabase
@@ -95,16 +96,10 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     return (ma?.createdAt || "").localeCompare(mb?.createdAt || "");
   });
 
-  let totalQty = 0;
-  let costBasis = 0;
-  let hasCost = false;
-  for (const p of portfolios) {
-    if (p.quantity != null) totalQty += p.quantity;
-    if (p.quantity != null && p.entryPrice != null) {
-      costBasis += p.quantity * p.entryPrice;
-      hasCost = true;
-    }
-  }
+  // Shared with components/position/PositionHoldings.tsx, which renders these
+  // same figures — two implementations of the partial-cost rule is how the page
+  // and this route came to disagree about the same holding.
+  const totals = positionTotals(portfolios, null);
 
   const name =
     rows.find((r) => typeof r.name === "string" && r.name)?.name?.toString() ||
@@ -114,8 +109,8 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     symbol,
     name,
     totals: {
-      quantity: totalQty,
-      costBasis: hasCost ? costBasis : null,
+      quantity: totals.quantity,
+      costBasis: totals.costBasis,
     },
     portfolios,
   };

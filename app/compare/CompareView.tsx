@@ -6,12 +6,7 @@ import {
   getPortfoliosServerSnapshot,
   subscribePortfolios,
 } from "@/lib/portfolios";
-import {
-  getUser,
-  getUserServerSnapshot,
-  isAuthReady,
-  subscribeUser,
-} from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import {
   BENCHMARKS,
   COMPARE_RANGES,
@@ -39,11 +34,7 @@ type FetchSlot = {
 };
 
 export function CompareView() {
-  const user = useSyncExternalStore(
-    subscribeUser,
-    getUser,
-    getUserServerSnapshot,
-  );
+  const { user, ready: authReady } = useAuth();
   const portfolios = useSyncExternalStore(
     subscribePortfolios,
     getPortfolios,
@@ -54,20 +45,6 @@ export function CompareView() {
     getTheme,
     getThemeServerSnapshot,
   );
-
-  const [authReady, setAuthReady] = useState<boolean>(() =>
-    typeof window === "undefined" ? false : isAuthReady(),
-  );
-  useEffect(() => {
-    if (authReady) return;
-    const id = window.setInterval(() => {
-      if (isAuthReady()) {
-        setAuthReady(true);
-        window.clearInterval(id);
-      }
-    }, 100);
-    return () => window.clearInterval(id);
-  }, [authReady]);
 
   const [range, setRange] = useState<CompareRange>("1Y");
   const [explicitPortfolios, setExplicitPortfolios] = useState<Set<string> | null>(

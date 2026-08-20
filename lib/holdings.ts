@@ -161,6 +161,65 @@ export function computeTotals(tickers: readonly Ticker[], quotes: Quotes): Total
   };
 }
 
+/** One portfolio's slice of a single symbol. */
+export type PositionRow = { quantity: number | null; entryPrice: number | null };
+
+export type PositionTotals = {
+  /** Every row with a quantity, whether or not its entry price is known. */
+  quantity: number;
+  /** Only rows with BOTH a quantity and an entry price. */
+  costBasis: number | null;
+  /** Weighted mean entry, over the same subset as `costBasis`. */
+  avgEntry: number | null;
+  /** Every row with a quantity, priced at the live price. */
+  marketValue: number | null;
+  /** Over the `costBasis` subset only — this is NOT `marketValue - costBasis`. */
+  pl: number | null;
+  plPct: number | null;
+};
+
+/**
+ * One symbol's exposure, aggregated across every portfolio holding it.
+ *
+ * The subset discipline is the whole point, and it is the same one
+ * `computeTotals` keeps with `pricedWithBasis`: a cost basis covering half the
+ * shares must never be measured against all of them. Doing so understates the
+ * average entry by the ratio of the two quantities and inflates P&L by the
+ * market value of every lot whose cost is unknown.
+ */
+export function positionTotals(
+  rows: readonly PositionRow[],
+  price: number | null,
+): PositionTotals {
+  let quantity = 0;
+  let costBasis = 0;
+  let qtyWithCost = 0;
+  let hasCost = false;
+
+  for (const r of rows) {
+    if (r.quantity == null) continue;
+    quantity += r.quantity;
+    if (r.entryPrice == null) continue;
+    costBasis += r.quantity * r.entryPrice;
+    qtyWithCost += r.quantity;
+    hasCost = true;
+  }
+
+  // Market value of only the lots that have a cost, so P&L is like-for-like.
+  const pricedWithCost =
+    price != null && hasCost && qtyWithCost > 0 ? price * qtyWithCost : null;
+  const pl = pricedWithCost != null ? pricedWithCost - costBasis : null;
+
+  return {
+    quantity,
+    costBasis: hasCost ? costBasis : null,
+    avgEntry: hasCost && qtyWithCost > 0 ? costBasis / qtyWithCost : null,
+    marketValue: price != null && quantity > 0 ? price * quantity : null,
+    pl,
+    plPct: pl != null && costBasis > 0 ? (pl / costBasis) * 100 : null,
+  };
+}
+
 export function sortValue(
   t: Ticker,
   col: SortColumn,

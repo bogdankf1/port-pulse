@@ -9,16 +9,55 @@ For every US stock ticker visible in the image, extract:
 - entryPrice: average cost per share, if visible. Look for labels like "Avg Cost", "Average Price", "Cost Basis", "Entry", "Buy Price". This is NOT the current price, NOT the market value, NOT today's change.
 
 Rules:
-- Return ONLY a JSON array of objects, no explanation, no markdown fences.
-- Format: [{"symbol":"AAPL","name":"Apple Inc.","quantity":10,"entryPrice":150.25}, ...]
-- Omit "quantity" entirely if you cannot read it. Same for "entryPrice".
 - Numbers must be plain numbers (no $ signs, no commas, no thousands separators).
+- Use null for quantity or entryPrice when you cannot read it. Do not guess.
 - If a ticker appears multiple times in one screenshot, return it once with summed quantity and weighted-average entry price.
-- If you cannot identify a ticker with confidence, skip it entirely.`;
+- If you cannot identify a ticker with confidence, skip it entirely.
+- Return an empty list if the image holds no readable tickers.`;
 
-const MODEL = "claude-opus-4-7";
+const MODEL = "claude-opus-5";
 
-type SupportedMimeType = "image/jpeg" | "image/png" | "image/webp" | "image/gif";
+/**
+ * A screenshot of a long holdings list runs to thousands of tokens of JSON.
+ * The previous 1024 cap truncated anything past roughly 25 holdings mid-array,
+ * which surfaced to the user as "malformed JSON" — indistinguishable from a
+ * genuinely unreadable image. 4096 matches app/api/balances/parse and covers
+ * well over a hundred rows.
+ */
+const MAX_TOKENS = 4096;
+
+/**
+ * Structured output, the same mechanism app/api/balances/parse uses.
+ *
+ * This replaces hand-stripping markdown fences off a free-text reply and
+ * hoping the remainder parsed. `quantity` and `entryPrice` are
+ * required-but-nullable rather than optional for the reason recorded in the
+ * balances route: a model allowed to omit a key omits it inconsistently, so
+ * half the rows lose a figure that was legible in the image.
+ */
+const SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["tickers"],
+  properties: {
+    tickers: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["symbol", "name", "quantity", "entryPrice"],
+        properties: {
+          symbol: { type: "string", maxLength: 10 },
+          name: { type: "string", maxLength: 120 },
+          quantity: { type: ["number", "null"] },
+          entryPrice: { type: ["number", "null"] },
+        },
+      },
+    },
+  },
+} as const;
+
+type SupportedMimeType = "image/jpeg" | "image/png" | "image/webp";
 
 export async function parseScreenshot(
   imageBase64: string,
@@ -32,7 +71,12 @@ export async function parseScreenshot(
   const client = new Anthropic({ apiKey });
   const response = await client.messages.create({
     model: MODEL,
-    max_tokens: 1024,
+    max_tokens: MAX_TOKENS,
+    output_config: { format: { type: "json_schema", schema: SCHEMA } },
+    // The instructions are the system prompt rather than a trailing text
+    // block, which leaves the user turn as the image alone — the shape the
+    // vision docs recommend.
+    system: SYSTEM_PROMPT,
     messages: [
       {
         role: "user",
@@ -45,57 +89,55 @@ export async function parseScreenshot(
               data: imageBase64,
             },
           },
-          { type: "text", text: SYSTEM_PROMPT },
         ],
       },
     ],
   });
+
+  // Checked before the content is trusted, so a cut-off or declined response
+  // reports what actually happened instead of failing later as a parse error.
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(
+      "That screenshot holds more positions than one pass can read. Try splitting it.",
+    );
+  }
+  if (response.stop_reason === "refusal") {
+    throw new Error("Claude declined to read that image.");
+  }
 
   const textBlock = response.content.find((b) => b.type === "text");
   if (!textBlock || textBlock.type !== "text") {
     throw new Error("Claude returned no text content");
   }
 
-  const cleaned = textBlock.text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "")
-    .trim();
-
-  let parsed: unknown;
+  let parsed: { tickers?: unknown };
   try {
-    parsed = JSON.parse(cleaned);
+    parsed = JSON.parse(textBlock.text) as { tickers?: unknown };
   } catch {
     throw new Error("Claude returned malformed JSON");
   }
 
-  if (!Array.isArray(parsed)) {
-    throw new Error("Claude response was not a JSON array");
-  }
+  const list = Array.isArray(parsed.tickers) ? parsed.tickers : [];
 
+  // Validated here as well as by the schema: the schema fixes the shape, but
+  // the model still chooses the values, and a zero or negative quantity would
+  // land in the dashboard's totals as garbage.
   const seen = new Set<string>();
   const tickers: Ticker[] = [];
-  for (const item of parsed) {
-    if (
-      item &&
-      typeof item === "object" &&
-      "symbol" in item &&
-      typeof (item as { symbol: unknown }).symbol === "string"
-    ) {
-      const symbol = (item as { symbol: string }).symbol.trim().toUpperCase();
-      if (!symbol || seen.has(symbol)) continue;
-      if (!/^[A-Z]{1,5}(\.[A-Z])?$/.test(symbol)) continue;
-      seen.add(symbol);
-      const rawName = (item as { name?: unknown }).name;
-      const rawQty = (item as { quantity?: unknown }).quantity;
-      const rawEntry = (item as { entryPrice?: unknown }).entryPrice;
-      tickers.push({
-        symbol,
-        name: typeof rawName === "string" ? rawName.trim() : "",
-        quantity: toFiniteNumber(rawQty),
-        entryPrice: toFiniteNumber(rawEntry),
-      });
-    }
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const r = item as Record<string, unknown>;
+    if (typeof r.symbol !== "string") continue;
+    const symbol = r.symbol.trim().toUpperCase();
+    if (!symbol || seen.has(symbol)) continue;
+    if (!/^[A-Z]{1,5}(\.[A-Z])?$/.test(symbol)) continue;
+    seen.add(symbol);
+    tickers.push({
+      symbol,
+      name: typeof r.name === "string" ? r.name.trim() : "",
+      quantity: toFiniteNumber(r.quantity),
+      entryPrice: toFiniteNumber(r.entryPrice),
+    });
   }
 
   return tickers;
@@ -103,10 +145,5 @@ export async function parseScreenshot(
 
 function toFiniteNumber(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
-  if (typeof v === "string") {
-    const cleaned = v.replace(/[$,\s]/g, "");
-    const n = Number(cleaned);
-    if (Number.isFinite(n) && n > 0) return n;
-  }
   return undefined;
 }

@@ -1,11 +1,17 @@
 "use client";
 
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
+import { signInWithGoogle } from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import { mergeIntoWatchlist } from "@/lib/storage";
+import {
+  ACCEPTED_IMAGE_TYPES,
+  IMAGE_ACCEPT_ATTR,
+  MAX_IMAGE_BYTES,
+  MAX_IMAGE_LABEL,
+} from "@/lib/upload";
 import type { Ticker } from "@/types";
 
-const ACCEPTED_TYPES = ["image/png", "image/jpeg", "image/webp"];
-const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_FILES = 10;
 
 type Mode = "first" | "merge";
@@ -22,6 +28,7 @@ type Props = {
 };
 
 export function Uploader({ mode = "first", onComplete }: Props) {
+  const { user, ready: authReady } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,11 +41,11 @@ export function Uploader({ mode = "first", onComplete }: Props) {
       return `Up to ${MAX_FILES} screenshots at a time.`;
     }
     for (const file of files) {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
+      if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
         return `"${file.name}" is not a supported image. Use PNG, JPEG, or WebP.`;
       }
-      if (file.size > MAX_BYTES) {
-        return `"${file.name}" is over 10 MB.`;
+      if (file.size > MAX_IMAGE_BYTES) {
+        return `"${file.name}" is over ${MAX_IMAGE_LABEL}.`;
       }
     }
     return null;
@@ -145,6 +152,13 @@ export function Uploader({ mode = "first", onComplete }: Props) {
     if (e.target) e.target.value = "";
   }
 
+  // Parsing bills a Claude Vision call to this deployment's own API key, so
+  // /api/parse requires a session. Showing the dropzone anyway would spend an
+  // upload to earn a 401.
+  if (authReady && !user) {
+    return <SignedOutPrompt mode={mode} />;
+  }
+
   return (
     <div className="w-full max-w-xl">
       <div
@@ -172,7 +186,7 @@ export function Uploader({ mode = "first", onComplete }: Props) {
         <input
           ref={inputRef}
           type="file"
-          accept={ACCEPTED_TYPES.join(",")}
+          accept={IMAGE_ACCEPT_ATTR}
           multiple
           className="hidden"
           onChange={onChange}
@@ -201,8 +215,8 @@ export function Uploader({ mode = "first", onComplete }: Props) {
                   : "Drop your portfolio screenshots"}
               </div>
               <div className="mt-1 text-xs text-slate-500 sm:text-sm">
-                or click to choose · up to {MAX_FILES} · PNG, JPEG, WebP · 10 MB
-                each
+                or click to choose · up to {MAX_FILES} · PNG, JPEG, WebP ·{" "}
+                {MAX_IMAGE_LABEL} each
               </div>
             </>
           )}
@@ -216,6 +230,30 @@ export function Uploader({ mode = "first", onComplete }: Props) {
           {error}
         </div>
       )}
+    </div>
+  );
+}
+
+function SignedOutPrompt({ mode }: { mode: Mode }) {
+  return (
+    <div className="w-full max-w-xl rounded-2xl border-2 border-dashed border-slate-300 bg-white/60 px-8 py-14 text-center dark:border-slate-700 dark:bg-slate-900/40">
+      <div className="mb-4 flex justify-center">
+        <UploadIcon />
+      </div>
+      <div className="text-base font-medium text-slate-900 dark:text-slate-100">
+        Sign in to read a screenshot
+      </div>
+      <p className="mx-auto mt-1.5 max-w-xs text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+        Claude Vision parses your holdings out of the image, and signing in is
+        also what saves them across your devices.
+      </p>
+      <button
+        type="button"
+        onClick={() => void signInWithGoogle(mode === "first" ? "/" : undefined)}
+        className="mt-5 inline-flex min-h-[44px] items-center rounded-lg bg-slate-900 px-4 font-mono text-xs font-medium text-white transition-opacity hover:opacity-90 dark:bg-slate-100 dark:text-slate-900"
+      >
+        Sign in with Google
+      </button>
     </div>
   );
 }

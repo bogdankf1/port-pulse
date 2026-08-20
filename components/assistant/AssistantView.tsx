@@ -7,12 +7,7 @@ import {
   useState,
   useSyncExternalStore,
 } from "react";
-import {
-  getUser,
-  getUserServerSnapshot,
-  isAuthReady,
-  subscribeUser,
-} from "@/lib/auth";
+import { useAuth } from "@/hooks/useAuth";
 import {
   getActiveIdServerSnapshot,
   getActivePortfolioId,
@@ -30,29 +25,7 @@ import { SuggestionChips } from "./SuggestionChips";
 import { SignInPrompt } from "./SignInPrompt";
 
 export function AssistantView() {
-  const user = useSyncExternalStore(
-    subscribeUser,
-    getUser,
-    getUserServerSnapshot,
-  );
-  // Auth readiness must be its OWN subscribed snapshot, not a plain
-  // `isAuthReady()` call during render.
-  //
-  // `getUser()` returns null both while the initial auth fetch is in flight and
-  // when the user is genuinely signed out. Branching on `user` alone therefore
-  // flashes the sign-in prompt at every signed-in visitor — the same
-  // loading-mistaken-for-empty bug that `isWatchlistLoading()` exists to fix.
-  //
-  // And reading `isAuthReady()` inline would not work either: for a signed-out
-  // user the snapshot is null before and after `lib/auth.ts`'s `emit()`, so
-  // `useSyncExternalStore` sees no change and never re-renders — the pane would
-  // sit on "loading" forever. `isAuthReady` as its own snapshot flips
-  // false → true, which does re-render.
-  const authReady = useSyncExternalStore(
-    subscribeUser,
-    isAuthReady,
-    () => false,
-  );
+  const { user, ready: authReady } = useAuth();
   const portfolios = useSyncExternalStore(
     subscribePortfolios,
     getPortfolios,

@@ -4,7 +4,7 @@
 
 A web app where a user uploads a screenshot of their investment portfolio (from any broker — Robinhood, Interactive Brokers, eToro, etc.), Claude Vision parses the tickers from it, and a live dashboard appears showing real-time prices via WebSocket.
 
-The owner uses this personally to monitor two separate portfolios. Auth is optional — the app works without signing in, but signing in with Google saves the watchlist to Supabase so it persists across sessions.
+The owner uses this personally to monitor two separate portfolios, signed in on every device so the data is shared between them. Browsing works signed out, but **screenshot parsing requires a Google sign-in**: it bills a Claude Vision call to this deployment's own API key, and an open endpoint that costs money per request is an open door. Signing in is also what saves the watchlist to Supabase so it persists across sessions and devices.
 
 ---
 
@@ -138,8 +138,12 @@ If you cannot identify a ticker with confidence, skip it.
   - On next visit, load saved watchlist automatically (skip upload step if watchlist exists)
   - Show a "Clear watchlist" option
 - If not signed in:
-  - Everything works, state lives in `sessionStorage`
-  - Show a subtle "Sign in to save your watchlist" nudge (not a blocker)
+  - Browsing, manual ticker entry and live prices all work; state is in-memory
+    only and is lost on reload
+  - Screenshot upload is **not** available — `/api/parse` returns 401 and the
+    dropzone renders a sign-in prompt in its place. Every route that spends
+    money (`/api/parse`, `/api/balances/parse`, `/api/assistant`) requires a
+    session; the read-only compute routes stay public
 
 ---
 

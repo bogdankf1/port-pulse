@@ -40,11 +40,11 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: NextRequest, ctx: Ctx) {
   if (!isConfigured()) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
   const { user, supabase } = await getAuthedSupabase();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
   const { id } = await ctx.params;
   if (!id) {
@@ -85,11 +85,11 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 
 export async function DELETE(_request: NextRequest, ctx: Ctx) {
   if (!isConfigured()) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
   const { user, supabase } = await getAuthedSupabase();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
   }
   const { id } = await ctx.params;
   if (!id) {
