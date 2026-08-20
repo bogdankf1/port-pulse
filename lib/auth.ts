@@ -1,14 +1,11 @@
 import type { User } from "@supabase/supabase-js";
+import { createEmitter } from "./emitter";
 import { createBrowserSupabase, isSupabaseConfigured } from "./supabase";
 
 let user: User | null = null;
 let initialized = false;
 let initialFetchDone = false;
-const subscribers = new Set<() => void>();
-
-function emit(): void {
-  for (const sub of subscribers) sub();
-}
+const store = createEmitter();
 
 function ensureInit(): void {
   if (initialized) return;
@@ -30,12 +27,12 @@ function ensureInit(): void {
     })
     .finally(() => {
       initialFetchDone = true;
-      emit();
+      store.emit();
     });
 
   supabase.auth.onAuthStateChange((_event, session) => {
     user = session?.user ?? null;
-    emit();
+    store.emit();
   });
 }
 
@@ -50,10 +47,7 @@ export function getUserServerSnapshot(): User | null {
 
 export function subscribeUser(cb: () => void): () => void {
   ensureInit();
-  subscribers.add(cb);
-  return () => {
-    subscribers.delete(cb);
-  };
+  return store.subscribe(cb);
 }
 
 export function isAuthReady(): boolean {

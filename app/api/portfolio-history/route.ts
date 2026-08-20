@@ -35,6 +35,6 @@ export async function POST(request: Request) {
 
   const result = await buildPortfolioHistory(holdings, body.range);
   return NextResponse.json(result, {
-    headers: { "Cache-Control": "private, max-age=0, no-store" },
+    headers: { "Cache-Control": "private, no-store" },
   });
 }

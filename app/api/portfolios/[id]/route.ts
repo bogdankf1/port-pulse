@@ -1,26 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import type { Portfolio } from "@/types";
 
 export const runtime = "nodejs";
 
 const TABLE = "portfolios";
 const MAX_NAME_LEN = 60;
-
-function isConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
-
-async function getAuthedSupabase() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { user, supabase };
-}
 
 function mapRow(r: {
   id: string;
@@ -39,13 +24,8 @@ function mapRow(r: {
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: NextRequest, ctx: Ctx) {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-  const { user, supabase } = await getAuthedSupabase();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
   const { id } = await ctx.params;
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
@@ -84,13 +64,8 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
 }
 
 export async function DELETE(_request: NextRequest, ctx: Ctx) {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-  const { user, supabase } = await getAuthedSupabase();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
   const { id } = await ctx.params;
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });

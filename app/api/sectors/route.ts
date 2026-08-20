@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { lookupSector } from "@/lib/sectorMap";
 
+export const runtime = "nodejs";
+
 const SYMBOL_RE = /^[A-Z]{1,5}(\.[A-Z])?$/;
 const MAX_SYMBOLS = 50;
 

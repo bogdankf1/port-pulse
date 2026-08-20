@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import { parseCsv, toPreviewText } from "@/lib/csv";
 import type { ParsedBalance } from "@/types";
 
@@ -72,13 +72,8 @@ const SYSTEM = [
 ].join("\n");
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { error: authError } = await requireUser();
+  if (authError) return authError;
 
   let text: string;
   try {

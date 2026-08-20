@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import { mcpContextFromSession } from "@/lib/assistant/context";
 import { generateFollowUps, runAssistantTurn } from "@/lib/assistant/loop";
 import { encodeEvent } from "@/lib/assistant/protocol";
@@ -44,25 +44,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Message is too long" }, { status: 400 });
   }
 
-  const supabase = await createServerSupabase();
-  // `getUser()` validates the JWT against Supabase and is the authentication
-  // step. `getSession()` only reads cookies, so on its own it authenticates
-  // nothing — it is called purely for `access_token`.
+  // `requireUser()` does the authentication: it calls `getUser()`, which
+  // validates the JWT against Supabase. `getSession()` below only reads
+  // cookies, so on its own it authenticates nothing — it is called purely for
+  // `access_token`.
   //
   // The order matters and is not interchangeable: `getUser()` first means an
   // expired token has already been refreshed by the time `getSession()` reads
-  // it, so the token handed to the tools is the fresh one. Reversing these two
-  // calls can hand the MCP layer a token that is about to expire mid-turn.
+  // it, so the token handed to the tools is the fresh one. Calling
+  // `getSession()` before `requireUser()` can hand the MCP layer a token that
+  // is about to expire mid-turn.
   //
-  // No other route in this codebase calls `getSession()` — this is the first,
-  // because it is the only place that needs the raw token rather than just the
-  // identity.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  // No other route in this codebase calls `getSession()` — this is the only
+  // place that needs the raw token rather than just the identity, which is why
+  // it takes the client back off `requireUser` instead of only the user.
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
+
   const {
     data: { session },
   } = await supabase.auth.getSession();

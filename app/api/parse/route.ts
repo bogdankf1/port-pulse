@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import { parseScreenshot } from "@/lib/claude";
 import {
   ACCEPTED_IMAGE_TYPES,
@@ -15,13 +15,8 @@ export async function POST(request: Request) {
   // route bills a vision call to our own Anthropic key on every request, and
   // the dropzone fans out over up to ten files at once, so leaving it open let
   // anyone who found the URL spend the account's budget.
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { error: authError } = await requireUser();
+  if (authError) return authError;
 
   let formData: FormData;
   try {

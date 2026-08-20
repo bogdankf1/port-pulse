@@ -1,5 +1,6 @@
 import type { Ticker } from "@/types";
 import { getUser, isAuthReady, subscribeUser } from "./auth";
+import { createEmitter } from "./emitter";
 import { isSupabaseConfigured } from "./supabase";
 import {
   getActivePortfolioId,
@@ -9,7 +10,7 @@ import {
 
 const EMPTY: Ticker[] = [];
 
-const subscribers = new Set<() => void>();
+const store = createEmitter();
 let cached: Ticker[] = EMPTY;
 let initialized = false;
 let lastUserId: string | null = null;
@@ -30,9 +31,6 @@ function loadKey(userId: string, portfolioId: string): string {
   return `${userId}:${portfolioId}`;
 }
 
-function emit(): void {
-  for (const sub of subscribers) sub();
-}
 
 async function fetchRemote(portfolioId: string): Promise<Ticker[] | null> {
   try {
@@ -135,7 +133,7 @@ async function reload(): Promise<void> {
       lastPortfolioId = null;
       loadedKey = null;
       cached = EMPTY;
-      emit();
+      store.emit();
     }
     return;
   }
@@ -170,7 +168,7 @@ async function reload(): Promise<void> {
 
     cached = merged;
     loadedKey = loadKey(userId, portfolioId);
-    emit();
+    store.emit();
   } finally {
     migrating = false;
   }
@@ -240,10 +238,7 @@ export function isWatchlistLoading(): boolean {
 
 export function subscribeWatchlist(cb: () => void): () => void {
   ensureInit();
-  subscribers.add(cb);
-  return () => {
-    subscribers.delete(cb);
-  };
+  return store.subscribe(cb);
 }
 
 export function mergeIntoWatchlist(incoming: Ticker[]): void {
@@ -253,7 +248,7 @@ export function mergeIntoWatchlist(incoming: Ticker[]): void {
   const merged = mergeArrays(before, incoming);
   if (merged === before) return;
   cached = merged;
-  emit();
+  store.emit();
   if (lastUserId && lastPortfolioId) {
     const touched = new Set(incoming.map((t) => t.symbol));
     const toPost = merged.filter((t) => touched.has(t.symbol));
@@ -265,7 +260,7 @@ export function removeFromWatchlist(symbol: string): void {
   ensureInit();
   if (!cached.some((t) => t.symbol === symbol)) return;
   cached = cached.filter((t) => t.symbol !== symbol);
-  emit();
+  store.emit();
   if (lastUserId && lastPortfolioId) {
     void deleteRemote(lastPortfolioId, [symbol]);
   }
@@ -275,7 +270,7 @@ export function clearWatchlist(): void {
   ensureInit();
   if (cached.length === 0) return;
   cached = EMPTY;
-  emit();
+  store.emit();
   if (lastUserId && lastPortfolioId) {
     void deleteRemote(lastPortfolioId);
   }

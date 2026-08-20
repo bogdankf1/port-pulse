@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { createEmitter } from "@/lib/emitter";
 import type { ConnectionState, PriceState } from "@/types";
 
 type Listener = () => void;
 
 const prices = new Map<string, PriceState>();
 const priceListeners = new Map<string, Set<Listener>>();
-const connListeners = new Set<Listener>();
+const connStore = createEmitter();
 const quoteInFlight = new Set<string>();
 
 let ws: WebSocket | null = null;
@@ -19,9 +20,6 @@ let teardownTimer: ReturnType<typeof setTimeout> | null = null;
 let activeUsers = 0;
 let connState: ConnectionState = "idle";
 
-function notifyConn() {
-  for (const l of connListeners) l();
-}
 
 function notifyPrice(symbol: string) {
   const ls = priceListeners.get(symbol);
@@ -31,7 +29,7 @@ function notifyPrice(symbol: string) {
 function setConnState(next: ConnectionState) {
   if (connState === next) return;
   connState = next;
-  notifyConn();
+  connStore.emit();
 }
 
 function reconcile() {
@@ -193,10 +191,7 @@ function subscribePrice(symbol: string, listener: Listener): () => void {
 }
 
 function subscribeConn(listener: Listener): () => void {
-  connListeners.add(listener);
-  return () => {
-    connListeners.delete(listener);
-  };
+  return connStore.subscribe(listener);
 }
 
 export function useFinnhubPrices(symbols: string[]): ConnectionState {

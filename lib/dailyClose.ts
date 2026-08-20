@@ -1,16 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-type Listener = () => void;
+import { createEmitter } from "@/lib/emitter";
 
 const closes = new Map<string, number>();
 const inFlight = new Set<string>();
-const listeners = new Set<Listener>();
-
-function notify() {
-  for (const l of listeners) l();
-}
+const store = createEmitter();
 
 async function fetchClose(symbol: string): Promise<void> {
   if (closes.has(symbol) || inFlight.has(symbol)) return;
@@ -26,7 +21,7 @@ async function fetchClose(symbol: string): Promise<void> {
     const data = await res.json();
     if (typeof data?.pc === "number" && data.pc > 0) {
       closes.set(symbol, data.pc);
-      notify();
+      store.emit();
     }
   } catch {
     // ignore
@@ -45,11 +40,9 @@ export function useDailyCloseVersion(symbols: string[]): number {
 
   useEffect(() => {
     const cb = () => setVersion((v) => v + 1);
-    listeners.add(cb);
+    const off = store.subscribe(cb);
     for (const s of symbols) void fetchClose(s);
-    return () => {
-      listeners.delete(cb);
-    };
+    return off;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 

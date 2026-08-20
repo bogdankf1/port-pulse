@@ -1,19 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import { positionTotals } from "@/lib/holdings";
 import type { PositionDetails, PositionPortfolioRow } from "@/types";
 
 export const runtime = "nodejs";
 
+/** Per-user data: never store it in a shared or on-disk cache. */
+const PRIVATE = { "Cache-Control": "private, no-store" };
+
 const WATCHLIST = "watchlist_items";
 const PORTFOLIOS = "portfolios";
-
-function isConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
 
 function toFiniteNumber(v: unknown): number | null {
   if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
@@ -23,22 +19,14 @@ function toFiniteNumber(v: unknown): number | null {
 type Ctx = { params: Promise<{ symbol: string }> };
 
 export async function GET(_request: NextRequest, ctx: Ctx) {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
   const { symbol: symbolRaw } = await ctx.params;
   const symbol = (symbolRaw || "").trim().toUpperCase();
   if (!symbol || !/^[A-Z]{1,10}(\.[A-Z]{1,3})?$/.test(symbol)) {
     return NextResponse.json({ error: "Invalid symbol" }, { status: 400 });
   }
 
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   const { data, error } = await supabase
     .from(WATCHLIST)
@@ -115,5 +103,5 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     portfolios,
   };
 
-  return NextResponse.json(body);
+  return NextResponse.json(body, { headers: PRIVATE });
 }

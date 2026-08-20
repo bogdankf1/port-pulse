@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import { usdRates } from "@/lib/mcp/fx";
 import { duplicateKeys, normalizeGroup, totalUsd } from "@/lib/balances";
 import type { Balance, ParsedBalance } from "@/types";
@@ -45,13 +45,8 @@ async function withRates(balances: Balance[]) {
 }
 
 export async function GET() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -81,13 +76,8 @@ export async function GET() {
  * The caller shows every removal for confirmation before reaching this point.
  */
 export async function PUT(request: Request) {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   let body: { rows?: unknown };
   try {
@@ -162,13 +152,8 @@ export async function PUT(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   const id = new URL(request.url).searchParams.get("id");
   // No id means clear them all — the "remove balances" path, not an accident:

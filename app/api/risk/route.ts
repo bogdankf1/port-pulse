@@ -54,7 +54,7 @@ export async function POST(request: Request) {
   try {
     const response = await computePortfolioRisk(holdings);
     return NextResponse.json(response, {
-      headers: { "Cache-Control": "private, max-age=0, no-store" },
+      headers: { "Cache-Control": "private, no-store" },
     });
   } catch (err) {
     if (err instanceof RiskDataUnavailableError) {

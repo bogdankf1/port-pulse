@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import { fetchYahooChart, YahooFetchError } from "@/lib/yahoo";
 import {
   BENCHMARKS,
@@ -20,13 +20,6 @@ const PORTFOLIOS = "portfolios";
 
 const SYMBOL_RE = /^[A-Z]{1,10}(\.[A-Z]{1,3})?$/;
 
-function isConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
-
 type Holding = { portfolioId: string; symbol: string; quantity: number };
 
 function parseList(value: string | null): string[] {
@@ -38,9 +31,6 @@ function parseList(value: string | null): string[] {
 }
 
 export async function GET(request: NextRequest) {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
 
   const params = request.nextUrl.searchParams;
   const rangeRaw = params.get("range") || "";
@@ -64,13 +54,8 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   // Validate benchmark IDs against allow-list.
   const validBenchmarks = benchmarkIds
@@ -231,7 +216,7 @@ export async function GET(request: NextRequest) {
   };
 
   const headers: Record<string, string> = {
-    "Cache-Control": "private, max-age=0, no-store",
+    "Cache-Control": "private, no-store",
   };
   if (missingSymbols.length > 0) {
     headers["X-Compare-Missing"] = missingSymbols.join(",");

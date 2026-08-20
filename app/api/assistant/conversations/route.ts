@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import {
   deleteConversation,
   listConversations,
@@ -9,13 +9,8 @@ import {
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   const id = new URL(request.url).searchParams.get("id");
   if (id) {
@@ -32,13 +27,8 @@ export async function GET(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) {

@@ -1,26 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import type { Portfolio } from "@/types";
 
 export const runtime = "nodejs";
 
+/** Per-user data: never store it in a shared or on-disk cache. */
+const PRIVATE = { "Cache-Control": "private, no-store" };
+
 const TABLE = "portfolios";
 const MAX_NAME_LEN = 60;
-
-function isConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
-
-async function getAuthedSupabase() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { user, supabase };
-}
 
 function mapRow(r: {
   id: string;
@@ -37,13 +25,8 @@ function mapRow(r: {
 }
 
 export async function GET() {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-  const { user, supabase } = await getAuthedSupabase();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   const { data, error } = await supabase
     .from(TABLE)
@@ -73,17 +56,15 @@ export async function GET() {
     rows = [created];
   }
 
-  return NextResponse.json({ portfolios: rows.map(mapRow) });
+  return NextResponse.json(
+    { portfolios: rows.map(mapRow) },
+    { headers: PRIVATE },
+  );
 }
 
 export async function POST(request: NextRequest) {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-  const { user, supabase } = await getAuthedSupabase();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   let body: unknown;
   try {

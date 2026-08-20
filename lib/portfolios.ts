@@ -1,11 +1,12 @@
 import type { Portfolio } from "@/types";
 import { getUser, isAuthReady, subscribeUser } from "./auth";
+import { createEmitter } from "./emitter";
 import { isSupabaseConfigured } from "./supabase";
 
 type Listener = () => void;
 
-const subscribers = new Set<Listener>();
-const activeSubscribers = new Set<Listener>();
+const store = createEmitter();
+const activeStore = createEmitter();
 
 const EMPTY: Portfolio[] = [];
 
@@ -16,13 +17,6 @@ let initialized = false;
 let lastUserId: string | null = null;
 let loadSeq = 0;
 
-function emit() {
-  for (const cb of subscribers) cb();
-}
-
-function emitActive() {
-  for (const cb of activeSubscribers) cb();
-}
 
 function setState(next: {
   portfolios?: Portfolio[];
@@ -36,8 +30,8 @@ function setState(next: {
     activeChanged = true;
   }
   if (next.loading !== undefined) loading = next.loading;
-  emit();
-  if (activeChanged) emitActive();
+  store.emit();
+  if (activeChanged) activeStore.emit();
 }
 
 async function loadList(): Promise<Portfolio[] | null> {
@@ -109,18 +103,12 @@ export function isPortfoliosLoading(): boolean {
 
 export function subscribePortfolios(cb: Listener): () => void {
   ensureInit();
-  subscribers.add(cb);
-  return () => {
-    subscribers.delete(cb);
-  };
+  return store.subscribe(cb);
 }
 
 export function subscribeActivePortfolio(cb: Listener): () => void {
   ensureInit();
-  activeSubscribers.add(cb);
-  return () => {
-    activeSubscribers.delete(cb);
-  };
+  return activeStore.subscribe(cb);
 }
 
 export function getPortfoliosServerSnapshot(): Portfolio[] {

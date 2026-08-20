@@ -1,27 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerSupabase } from "@/lib/supabase-server";
+import { requireUser } from "@/lib/supabase-server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Ticker } from "@/types";
 
 export const runtime = "nodejs";
 
+/** Per-user data: never store it in a shared or on-disk cache. */
+const PRIVATE = { "Cache-Control": "private, no-store" };
+
 const TABLE = "watchlist_items";
 const PORTFOLIOS = "portfolios";
-
-function isConfigured(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  );
-}
-
-async function getAuthedSupabase() {
-  const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return { user, supabase };
-}
 
 function toFiniteNumber(v: unknown): number | undefined {
   if (typeof v === "number" && Number.isFinite(v) && v > 0) return v;
@@ -44,13 +32,8 @@ async function ensureOwnedPortfolio(
 }
 
 export async function GET(request: NextRequest) {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-  const { user, supabase } = await getAuthedSupabase();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   const portfolioId = request.nextUrl.searchParams.get("portfolio_id");
   if (!portfolioId) {
@@ -78,17 +61,12 @@ export async function GET(request: NextRequest) {
     quantity: toFiniteNumber(r.quantity),
     entryPrice: toFiniteNumber(r.entry_price),
   }));
-  return NextResponse.json({ tickers });
+  return NextResponse.json({ tickers }, { headers: PRIVATE });
 }
 
 export async function POST(request: NextRequest) {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-  const { user, supabase } = await getAuthedSupabase();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
 
   let body: unknown;
   try {
@@ -161,13 +139,8 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  if (!isConfigured()) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-  const { user, supabase } = await getAuthedSupabase();
-  if (!user) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  const { user, supabase, error: authError } = await requireUser();
+  if (authError) return authError;
   const portfolioId = request.nextUrl.searchParams.get("portfolio_id");
   if (!portfolioId) {
     return NextResponse.json(
