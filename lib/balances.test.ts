@@ -3,6 +3,9 @@ import {
   ageInDays,
   balanceKey,
   duplicateKeys,
+  groupBalances,
+  hasGroups,
+  normalizeGroup,
   normalizeLabel,
   planUpload,
   totalUsd,
@@ -21,6 +24,7 @@ function bal(over: Partial<Balance> = {}): Balance {
     label: "Monobank",
     amount: 8753,
     currency: "EUR",
+    group: null,
     asOf: "2026-08-19T00:00:00.000Z",
     ...over,
   };
@@ -88,6 +92,34 @@ describe("planUpload", () => {
     expect(plan.filter((c) => c.kind === "remove")).toHaveLength(0);
   });
 
+  it("keeps the same account name at different banks apart", () => {
+    // The shape the second real file had: every bank names its accounts the
+    // same way, so "USD card" is three accounts, not one written three times.
+    const existing = [
+      bal({ id: "m1", label: "USD card", amount: 5267, currency: "USD", group: "Monobank" }),
+      bal({ id: "p1", label: "USD card", amount: 8834, currency: "USD", group: "Privatbank" }),
+    ];
+    const plan = planUpload(existing, [
+      { label: "USD card", amount: 5267, currency: "USD", group: "Monobank" },
+      { label: "USD card", amount: 9000, currency: "USD", group: "Privatbank" },
+      { label: "USD card", amount: 5571, currency: "USD", group: "PUMB" },
+    ]);
+    expect(plan.filter((c) => c.kind === "unchanged")).toHaveLength(1);
+    expect(plan.filter((c) => c.kind === "update")).toHaveLength(1);
+    expect(plan.filter((c) => c.kind === "add")).toHaveLength(1);
+    expect(plan.filter((c) => c.kind === "remove")).toHaveLength(0);
+  });
+
+  it("treats moving an account to another bank as a move, not an edit", () => {
+    // Honest: nothing in the file distinguishes a re-labelled bank from
+    // closing an account at one and opening it at another.
+    const plan = planUpload(
+      [bal({ id: "m1", label: "Deposit", currency: "USD", group: "Monobank" })],
+      [{ label: "Deposit", amount: 8753, currency: "USD", group: "Privatbank" }],
+    );
+    expect(plan.map((c) => c.kind).sort()).toEqual(["add", "remove"]);
+  });
+
   it("marks accounts missing from the upload for removal", () => {
     // An upload replaces the stored set, so anything the file omits goes. The
     // preview surfaces that before it happens.
@@ -103,6 +135,7 @@ describe("planUpload", () => {
       label: "Monobank",
       amount: 8753,
       currency: "EUR",
+      group: null,
     });
   });
 
@@ -182,6 +215,18 @@ describe("ageInDays", () => {
 });
 
 describe("balanceKey", () => {
+  it("separates the same name and currency at different banks", () => {
+    expect(balanceKey({ label: "USD card", currency: "USD", group: "Monobank" })).not.toBe(
+      balanceKey({ label: "USD card", currency: "USD", group: "PUMB" }),
+    );
+  });
+
+  it("reads a blank group and a missing one as the same account", () => {
+    expect(balanceKey({ label: "cash", currency: "USD", group: "  " })).toBe(
+      balanceKey({ label: "cash", currency: "USD" }),
+    );
+  });
+
   it("separates the same name in different currencies", () => {
     expect(balanceKey({ label: "cash", currency: "USD" })).not.toBe(
       balanceKey({ label: "cash", currency: "EUR" }),
@@ -202,7 +247,25 @@ describe("duplicateKeys", () => {
         { label: "cash", amount: 1, currency: "USD" },
         { label: "Cash", amount: 2, currency: "usd" },
       ]),
-    ).toEqual([{ label: "Cash", currency: "usd" }]);
+    ).toEqual([{ label: "Cash", currency: "usd", group: null }]);
+  });
+
+  it("does not flag the same account name at different banks", () => {
+    expect(
+      duplicateKeys([
+        { label: "USD card", amount: 1, currency: "USD", group: "Monobank" },
+        { label: "USD card", amount: 2, currency: "USD", group: "PUMB" },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("flags a repeat within one bank", () => {
+    expect(
+      duplicateKeys([
+        { label: "USD card", amount: 1, currency: "USD", group: "Monobank" },
+        { label: "usd card", amount: 2, currency: "usd", group: " monobank " },
+      ]),
+    ).toEqual([{ label: "usd card", currency: "usd", group: "monobank" }]);
   });
 
   it("does not flag the same name in different currencies", () => {
@@ -214,5 +277,90 @@ describe("duplicateKeys", () => {
         { label: "cash", amount: 3950, currency: "EUR" },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("normalizeGroup", () => {
+  it("reads a blank or absent group as no group at all", () => {
+    expect(normalizeGroup("  ")).toBeNull();
+    expect(normalizeGroup(null)).toBeNull();
+    expect(normalizeGroup(undefined)).toBeNull();
+  });
+
+  it("keeps a real group, trimmed", () => {
+    expect(normalizeGroup("  Monobank ")).toBe("Monobank");
+  });
+});
+
+describe("hasGroups", () => {
+  it("is false when no account says where it is held", () => {
+    expect(hasGroups([bal(), bal({ id: "b2", group: "  " })])).toBe(false);
+  });
+
+  it("is true as soon as one does", () => {
+    expect(hasGroups([bal(), bal({ id: "b2", group: "Monobank" })])).toBe(true);
+  });
+});
+
+describe("groupBalances", () => {
+  const rates = new Map([["EUR", 2]]);
+
+  it("subtotals each bank in USD", () => {
+    const groups = groupBalances(
+      [
+        bal({ id: "m1", amount: 100, currency: "USD", group: "Monobank" }),
+        bal({ id: "m2", amount: 50, currency: "EUR", group: "Monobank" }),
+        bal({ id: "p1", amount: 40, currency: "USD", group: "Privatbank" }),
+      ],
+      rates,
+    );
+    expect(groups.map((g) => [g.name, g.usd])).toEqual([
+      ["Monobank", 200],
+      ["Privatbank", 40],
+    ]);
+  });
+
+  it("sorts banks by how much they hold, largest first", () => {
+    const groups = groupBalances(
+      [
+        bal({ id: "a", amount: 10, currency: "USD", group: "Small" }),
+        bal({ id: "b", amount: 900, currency: "USD", group: "Big" }),
+      ],
+      rates,
+    );
+    expect(groups.map((g) => g.name)).toEqual(["Big", "Small"]);
+  });
+
+  it("puts accounts with no bank last, however large", () => {
+    // A leftover bucket is not a bank, so it does not compete for the top.
+    const groups = groupBalances(
+      [
+        bal({ id: "a", amount: 9000, currency: "USD", group: null }),
+        bal({ id: "b", amount: 1, currency: "USD", group: "Monobank" }),
+      ],
+      rates,
+    );
+    expect(groups.map((g) => g.name)).toEqual(["Monobank", null]);
+  });
+
+  it("names a group's unconvertible currencies rather than counting them zero", () => {
+    const groups = groupBalances(
+      [
+        bal({ id: "a", amount: 100, currency: "USD", group: "Cash" }),
+        bal({ id: "b", amount: 500, currency: "GBP", group: "Cash" }),
+      ],
+      rates,
+    );
+    expect(groups[0].usd).toBe(100);
+    expect(groups[0].missing).toEqual(["GBP"]);
+  });
+
+  it("buckets blank and absent groups together", () => {
+    const groups = groupBalances(
+      [bal({ id: "a", group: "  " }), bal({ id: "b", group: null })],
+      rates,
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0].balances).toHaveLength(2);
   });
 });

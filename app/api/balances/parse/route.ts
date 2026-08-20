@@ -28,11 +28,15 @@ const SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["label", "amount", "currency"],
+        required: ["label", "amount", "currency", "group"],
         properties: {
           label: { type: "string", maxLength: 80 },
           amount: { type: "number" },
           currency: { type: "string", minLength: 3, maxLength: 3 },
+          // Required-but-nullable rather than optional: a model allowed to omit
+          // the key omits it inconsistently, which reads as "no bank" for half
+          // the rows in a file that names one for every row.
+          group: { type: ["string", "null"], maxLength: 60 },
         },
       },
     },
@@ -45,15 +49,22 @@ const SYSTEM = [
   "",
   "The file has no fixed layout. Column names vary, may be in any language, and",
   "there may be preamble or total rows above or below the data. Work out which",
-  "columns hold the account name, the amount and the currency.",
+  "columns hold the account name, the amount, the currency and the bank the",
+  "account is held at.",
   "",
-  "label: the account's name as written, e.g. \"Monobank\" or \"Cash\".",
+  "label: the account's name as written, e.g. \"USD card\" or \"Deposit\".",
   "amount: the balance as a number. Strip currency symbols, spaces and",
   "thousands separators. A comma may be a decimal separator — \"1234,56\" is",
   "1234.56, not 123456. Amount and currency are sometimes in one cell",
   "(\"8753 EUR\"); split them.",
   "currency: the 3-letter ISO code, upper case. Map symbols (₴ UAH, € EUR,",
   "$ USD, £ GBP) and words (hryvnia UAH, dollars USD).",
+  "group: the bank or institution the account is held at, e.g. \"Monobank\",",
+  "\"Privatbank\" or \"Cash\" for money held outside a bank. It is often a",
+  "column headed something other than \"bank\" — \"type\", \"institution\",",
+  "\"provider\", \"where\" — or it may be a heading row that several accounts",
+  "sit under. Use null when the file genuinely says nothing about where an",
+  "account is held; do not invent one from the account name.",
   "",
   "Skip header rows, blank rows, and any row that totals the others rather than",
   "being an account. If a row has no readable amount, omit it rather than",
@@ -136,10 +147,16 @@ export async function POST(request: Request) {
       const amount = typeof r.amount === "number" ? r.amount : NaN;
       const currency =
         typeof r.currency === "string" ? r.currency.trim().toUpperCase() : "";
+      const group = typeof r.group === "string" ? r.group.trim().slice(0, 60) : "";
       if (!label || !Number.isFinite(amount) || !/^[A-Z]{3}$/.test(currency)) {
         continue;
       }
-      balances.push({ label: label.slice(0, 80), amount, currency });
+      balances.push({
+        label: label.slice(0, 80),
+        amount,
+        currency,
+        group: group || null,
+      });
     }
 
     if (balances.length === 0) {

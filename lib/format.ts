@@ -28,3 +28,20 @@ export function plColor(n: number): string {
 export function signed(n: number, format: (v: number) => string): string {
   return `${n >= 0 ? "+" : "−"}${format(Math.abs(n))}`;
 }
+
+/**
+ * An amount in its own currency, with that currency's sign — "$5,267.00",
+ * "€4,993.00", "£500.00".
+ *
+ * `narrowSymbol` is what keeps USD as "$" rather than "US$"; a currency with no
+ * symbol in this locale (CHF, PLN) falls back to its code, which is the only
+ * honest rendering. Fraction digits are left to the currency rather than forced
+ * to two, so a zero-decimal currency is not shown with cents it does not have.
+ */
+export function formatCurrency(amount: number, currency: string): string {
+  return amount.toLocaleString("en-US", {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+  });
+}

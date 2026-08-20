@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { usdRates } from "@/lib/mcp/fx";
-import { duplicateKeys, totalUsd } from "@/lib/balances";
+import { duplicateKeys, normalizeGroup, totalUsd } from "@/lib/balances";
 import type { Balance, ParsedBalance } from "@/types";
 
 export const runtime = "nodejs";
@@ -9,11 +9,14 @@ export const runtime = "nodejs";
 const TABLE = "balances";
 const MAX_ROWS = 100;
 
+const COLUMNS = "id, label, amount, currency, group_name, as_of";
+
 type Row = {
   id: string;
   label: string;
   amount: number | string;
   currency: string;
+  group_name: string | null;
   as_of: string;
 };
 
@@ -25,6 +28,7 @@ function toBalance(r: Row): Balance {
     // rather than at every call site that adds it up.
     amount: Number(r.amount),
     currency: String(r.currency).toUpperCase(),
+    group: normalizeGroup(r.group_name),
     asOf: String(r.as_of),
   };
 }
@@ -51,7 +55,8 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from(TABLE)
-    .select("id, label, amount, currency, as_of")
+    .select(COLUMNS)
+    .order("group_name", { ascending: true })
     .order("label", { ascending: true });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -107,20 +112,26 @@ export async function PUT(request: Request) {
     const amount = typeof r.amount === "number" ? r.amount : NaN;
     const currency =
       typeof r.currency === "string" ? r.currency.trim().toUpperCase() : "";
+    // A group is optional — a file that names no institution still saves.
+    const group =
+      typeof r.group === "string" ? normalizeGroup(r.group.slice(0, 60)) : null;
     if (!label || !Number.isFinite(amount) || !/^[A-Z]{3}$/.test(currency)) {
       return NextResponse.json(
         { error: "Every row needs a name, a numeric amount and a 3-letter currency" },
         { status: 400 },
       );
     }
-    rows.push({ label, amount, currency });
+    rows.push({ label, amount, currency, group });
   }
 
-  // Same name AND same currency twice cannot both be stored. Caught here so the
-  // user reads which account is doubled rather than a Postgres constraint name.
+  // The same group, name AND currency twice cannot all be stored. Caught here so
+  // the user reads which account is doubled rather than a Postgres constraint
+  // name.
   const dupes = duplicateKeys(rows);
   if (dupes.length > 0) {
-    const named = dupes.map((d) => `"${d.label}" (${d.currency})`).join(", ");
+    const named = dupes
+      .map((d) => `"${d.group ? `${d.group} · ${d.label}` : d.label}" (${d.currency})`)
+      .join(", ");
     return NextResponse.json(
       {
         error: `That file lists ${named} more than once. Give each account one row, or a distinct name.`,
@@ -134,14 +145,15 @@ export async function PUT(request: Request) {
     // Anything the checks above missed still reaches the user as English, not
     // as a constraint name.
     const message = /duplicate key|unique constraint/i.test(error.message)
-      ? "That file lists the same account and currency twice. Give each account one row."
+      ? "That file lists the same group, account and currency twice. Give each account one row."
       : error.message;
     return NextResponse.json({ error: message }, { status: 500 });
   }
 
   const { data } = await supabase
     .from(TABLE)
-    .select("id, label, amount, currency, as_of")
+    .select(COLUMNS)
+    .order("group_name", { ascending: true })
     .order("label", { ascending: true });
 
   return NextResponse.json(await withRates(((data ?? []) as Row[]).map(toBalance)), {

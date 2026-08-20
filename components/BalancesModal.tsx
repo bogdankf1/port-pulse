@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ModalShell } from "./ModalShell";
 import { planUpload, type BalanceChange } from "@/lib/balances";
-import { formatMoney } from "@/lib/format";
+import { formatCurrency, formatMoney } from "@/lib/format";
 import type { Balance, ParsedBalance } from "@/types";
 
 type Props = {
@@ -110,10 +110,11 @@ export function BalancesModal({ open, existing, onClose, onSaved }: Props) {
         {(stage.kind === "idle" || stage.kind === "error") && (
           <>
             <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
-              Upload a CSV with one row per account — a name, an amount and a
-              currency. Column names and order don&apos;t matter. The file
-              replaces your balances entirely, so include every account.
-              Nothing is saved until you confirm.
+              Upload a CSV with one row per account — a name, an amount, a
+              currency, and the bank it sits in if you want them grouped.
+              Column names and order don&apos;t matter. The file replaces your
+              balances entirely, so include every account. Nothing is saved
+              until you confirm.
             </p>
             <button
               type="button"
@@ -124,7 +125,7 @@ export function BalancesModal({ open, existing, onClose, onSaved }: Props) {
                 Choose a CSV file
               </span>
               <span className="font-mono text-[10px] text-slate-400 dark:text-slate-600">
-                Cash, 1000, USD
+                Monobank, USD card, 5267, USD
               </span>
             </button>
             <input
@@ -204,21 +205,28 @@ function PreviewTable({ plan }: { plan: BalanceChange[] }) {
             const amount = change.kind === "remove" ? change.amount : change.row.amount;
             const currency =
               change.kind === "remove" ? change.currency : change.row.currency;
+            const group =
+              change.kind === "remove" ? change.group : change.row.group;
             const gone = change.kind === "remove";
             return (
               <tr
-                key={`${label}-${i}`}
+                key={`${group ?? ""}-${label}-${i}`}
                 className="border-b border-slate-100 last:border-b-0 dark:border-slate-800/70"
               >
                 <td
                   className={`py-2 pr-2 ${gone ? "text-slate-400 line-through dark:text-slate-600" : "text-slate-700 dark:text-slate-200"}`}
                 >
+                  {group && (
+                    <span className="mr-1.5 font-mono text-[10px] uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                      {group}
+                    </span>
+                  )}
                   {label}
                 </td>
                 <td
                   className={`px-2 py-2 text-right font-mono tabular-nums ${gone ? "text-slate-400 line-through dark:text-slate-600" : "text-slate-900 dark:text-slate-100"}`}
                 >
-                  {formatMoney(amount)} <span className="text-slate-500">{currency}</span>
+                  {formatCurrency(amount, currency)}
                 </td>
                 <td className="w-24 py-2 pl-2 text-right font-mono text-[10px] uppercase tracking-widest">
                   {change.kind === "add" && (
@@ -227,7 +235,7 @@ function PreviewTable({ plan }: { plan: BalanceChange[] }) {
                   {change.kind === "update" && (
                     <span
                       className="text-slate-500"
-                      title={`Was ${formatMoney(change.from)} ${change.fromCurrency}`}
+                      title={`Was ${formatCurrency(change.from, change.fromCurrency)}`}
                     >
                       {formatMoney(change.from)} →
                     </span>

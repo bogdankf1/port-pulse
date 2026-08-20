@@ -125,15 +125,29 @@ create table if not exists balances (
   label text not null,
   amount numeric not null,
   currency text not null,
+  -- The bank or institution the account sits in. Empty string rather than null
+  -- for "not stated", so the unique constraint below treats every ungrouped
+  -- account as comparable — Postgres considers nulls distinct from each other,
+  -- which would let the same ungrouped account be stored twice.
+  group_name text not null default '',
   -- When the figure was true, not when the row was written. A balance is a
   -- point-in-time number and nothing refreshes it the way prices refresh.
   as_of timestamptz not null default now(),
   created_at timestamptz not null default now(),
-  -- Identity is (label, currency), not label alone: a bank issues one card per
-  -- currency under a single account name, so "cash" in GBP, CHF, USD and EUR
-  -- are four separate balances rather than one row written four times.
-  unique (user_id, label, currency)
+  -- Identity is (group, label, currency). Label alone is not enough: a bank
+  -- issues one card per currency under a single account name, so "cash" in GBP,
+  -- CHF, USD and EUR are four separate balances. Nor is (label, currency): every
+  -- bank names its accounts the same way, so "USD card" at Monobank, Privatbank
+  -- and PUMB are three accounts, not one listed three times.
+  unique (user_id, group_name, label, currency)
 );
+
+-- Existing installs: add the column and widen the unique key to include it.
+alter table balances add column if not exists group_name text not null default '';
+alter table balances drop constraint if exists balances_user_id_label_currency_key;
+alter table balances drop constraint if exists balances_user_id_group_name_label_currency_key;
+alter table balances add constraint balances_user_id_group_name_label_currency_key
+  unique (user_id, group_name, label, currency);
 
 create index if not exists balances_user_id_idx on balances(user_id);
 
@@ -170,12 +184,14 @@ begin
 
   delete from balances where user_id = auth.uid();
 
-  insert into balances (user_id, label, amount, currency, as_of)
+  insert into balances (user_id, label, amount, currency, group_name, as_of)
   select
     auth.uid(),
     r->>'label',
     (r->>'amount')::numeric,
     upper(r->>'currency'),
+    -- A row with no group stores '' — see the column comment above.
+    coalesce(r->>'group', ''),
     now()
   from jsonb_array_elements(rows) as r;
 end;

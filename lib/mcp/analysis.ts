@@ -17,7 +17,7 @@ import type { McpAuthContext } from "./auth";
 import { MAX_SYMBOLS, SYMBOL_RE } from "./config";
 import { createUserClient } from "./supabase";
 import { usdRates } from "./fx";
-import { toUsd, totalUsd } from "@/lib/balances";
+import { groupBalances, normalizeGroup, toUsd, totalUsd } from "@/lib/balances";
 
 /**
  * Portfolio-derived analysis. Each of these reuses the exact module the UI
@@ -270,8 +270,9 @@ export async function getBalances(ctx: McpAuthContext) {
   const supabase = createUserClient(ctx);
   const { data, error } = await supabase
     .from("balances")
-    .select("label, amount, currency, as_of")
+    .select("label, amount, currency, group_name, as_of")
     .eq("user_id", ctx.userId)
+    .order("group_name", { ascending: true })
     .order("label", { ascending: true });
   if (error) throw new Error(`Failed to load balances: ${error.message}`);
 
@@ -280,6 +281,7 @@ export async function getBalances(ctx: McpAuthContext) {
     label: String(r.label),
     amount: Number(r.amount),
     currency: String(r.currency).toUpperCase(),
+    group: normalizeGroup(r.group_name),
     asOf: String(r.as_of),
   }));
 
@@ -298,8 +300,16 @@ export async function getBalances(ctx: McpAuthContext) {
       label: r.label,
       amount: r.amount,
       currency: r.currency,
+      // The bank or institution, when the upload named one. Answers "how much
+      // do I hold at X" without the model re-deriving it from account names.
+      group: r.group,
       usd_value: toUsd(r, rates),
       as_of: r.asOf,
+    })),
+    by_group: groupBalances(rows, rates).map((g) => ({
+      group: g.name,
+      total_usd: g.usd,
+      accounts: g.balances.length,
     })),
     total_usd: total.usd,
     unconvertible_currencies: total.missing.length ? total.missing : undefined,

@@ -106,6 +106,9 @@ export type Balance = {
   label: string;
   amount: number;
   currency: string;
+  /** The bank or institution the account sits in, or null when the file said
+   *  nothing about one. */
+  group: string | null;
   /** ISO timestamp of when the figure was true, not when the row was written. */
   asOf: string;
 };
@@ -115,4 +118,5 @@ export type ParsedBalance = {
   label: string;
   amount: number;
   currency: string;
+  group?: string | null;
 };
