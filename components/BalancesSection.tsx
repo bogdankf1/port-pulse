@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import { BalancesEditModal } from "./BalancesEditModal";
 import { ConfirmModal } from "./ConfirmModal";
 import {
   ageInDays,
@@ -35,6 +36,7 @@ export function BalancesSection({
   onChanged,
 }: Props) {
   const [clearOpen, setClearOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   // Collapsed rather than expanded is what is tracked, so a group added by a
   // later upload arrives open like every other one.
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
@@ -76,13 +78,22 @@ export function BalancesSection({
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => setClearOpen(true)}
-          className="font-mono text-[10px] uppercase tracking-widest text-slate-500 transition-colors hover:text-slate-900 dark:hover:text-slate-100"
-        >
-          Remove
-        </button>
+        <div className="flex shrink-0 items-baseline gap-4">
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="font-mono text-[10px] uppercase tracking-widest text-slate-500 transition-colors hover:text-slate-900 dark:hover:text-slate-100"
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => setClearOpen(true)}
+            className="font-mono text-[10px] uppercase tracking-widest text-slate-500 transition-colors hover:text-slate-900 dark:hover:text-slate-100"
+          >
+            Remove
+          </button>
+        </div>
       </div>
 
       <div className="mt-2 sm:mt-3">
@@ -116,6 +127,15 @@ export function BalancesSection({
           No exchange rate for {missingRates.join(", ")} — those accounts are not
           in the total.
         </p>
+      )}
+
+      {editOpen && (
+        <BalancesEditModal
+          balances={balances}
+          rates={rateMap}
+          onClose={() => setEditOpen(false)}
+          onSaved={onChanged}
+        />
       )}
 
       <ConfirmModal

@@ -186,6 +186,19 @@ export function groupBalances(
   });
 }
 
+/**
+ * An amount typed by hand, or null when it is not a number.
+ *
+ * Commas and spaces are read as thousands separators, so a figure copied out of
+ * a banking app ("1,234.56", "1 234") pastes in as-is. Anything else — a
+ * currency symbol, a second decimal point — is rejected rather than guessed at.
+ */
+export function parseAmountInput(input: string): number | null {
+  const cleaned = input.replace(/[\s,]/g, "");
+  if (!/^-?(\d+\.?\d*|\.\d+)$/.test(cleaned)) return null;
+  return Number(cleaned);
+}
+
 /** Days since a balance was last true, for the staleness hint in the UI. */
 export function ageInDays(asOf: string, now: number = Date.now()): number | null {
   const t = Date.parse(asOf);

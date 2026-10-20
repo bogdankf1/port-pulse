@@ -7,6 +7,7 @@ import {
   hasGroups,
   normalizeGroup,
   normalizeLabel,
+  parseAmountInput,
   planUpload,
   totalUsd,
   toUsd,
@@ -362,5 +363,30 @@ describe("groupBalances", () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].balances).toHaveLength(2);
+  });
+});
+
+describe("parseAmountInput", () => {
+  it("reads plain and decimal numbers", () => {
+    expect(parseAmountInput("5267")).toBe(5267);
+    expect(parseAmountInput(" 12.5 ")).toBe(12.5);
+  });
+
+  it("ignores thousands separators and spaces", () => {
+    expect(parseAmountInput("1,234,567.89")).toBe(1234567.89);
+    expect(parseAmountInput("1 234")).toBe(1234);
+    expect(parseAmountInput("1\u00a0234")).toBe(1234);
+  });
+
+  it("keeps negatives, for an overdrawn or credit account", () => {
+    expect(parseAmountInput("-250.10")).toBe(-250.1);
+  });
+
+  it("rejects blank and non-numeric input", () => {
+    expect(parseAmountInput("")).toBeNull();
+    expect(parseAmountInput("   ")).toBeNull();
+    expect(parseAmountInput("abc")).toBeNull();
+    expect(parseAmountInput("12.3.4")).toBeNull();
+    expect(parseAmountInput("$100")).toBeNull();
   });
 });
