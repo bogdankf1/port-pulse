@@ -199,6 +199,9 @@ export function parseAmountInput(input: string): number | null {
   return Number(cleaned);
 }
 
+/** Offered when adding an account by hand, alongside any currency already held. */
+export const BALANCE_CURRENCIES = ["USD", "EUR", "UAH"] as const;
+
 /** Days since a balance was last true, for the staleness hint in the UI. */
 export function ageInDays(asOf: string, now: number = Date.now()): number | null {
   const t = Date.parse(asOf);
